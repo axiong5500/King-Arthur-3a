@@ -45,10 +45,10 @@ python -m http.server 8080
 
 ## 构建
 
-`index.html` 由未打补丁的原版注入皮肤功能生成（每次重建都从原版重新注入，不叠加）：
+`index.html` 由未打补丁的原版注入皮肤功能生成（每次重建都从原版重新注入，不叠加）。原版不入库，按你本地存放位置传 `-BaseHtml`：
 
 ```powershell
-pwsh ./skin-src/build.ps1 -BaseHtml ../_src/base_web.html -OutHtml ./index.html
+pwsh ./skin-src/build.ps1 -BaseHtml <未打补丁的原版.html> -OutHtml ./index.html
 ```
 
 ## 说明
