@@ -233,20 +233,22 @@
 
     /* 写入运行时（每帧覆盖，确保不被内部逻辑改回） */
     try {
-      sun.intensity = S.sunI;
+      var f = S.flash;
+      sun.intensity = S.sunI * (1 + f * 1.2);
       sun.color.copy(S.sunCol);
-      if (G.render && num(G.render.exposure)) G.render.exposure = S.exp;
-      if (post) {
-        post.wet = S.wet;
-        if (myFlash > 0) post.flash = Math.max(post.flash || 0, myFlash);
-      }
+      if (G.render && num(G.render.exposure)) G.render.exposure = S.exp * (1 + f * .55);
+      if (post) post.wet = S.wet;
       if (tune && num(tune.volFarHaze)) tune.volFarHaze = S.haze;
       if (skyU) {
         skyU.uZen.value.copy(S.zen);
         skyU.uHor.value.copy(S.hor);
         if (skyU.uHorAway && skyU.uHorAway.value) skyU.uHorAway.value.copy(S.away);
         if (skyU.uSunCol) skyU.uSunCol.value.copy(S.sunCol);
-        if (skyU.uFlash) skyU.uFlash.value = S.flash;
+        if (f > 0) {
+          skyU.uZen.value.lerp(skyU.uZen.value.clone().setRGB(1, 1, 1), f * .5);
+          skyU.uHor.value.lerp(skyU.uHor.value.clone().setRGB(1, 1, 1), f * .5);
+        }
+        if (skyU.uFlash) skyU.uFlash.value = 0;
       }
       if (rainVel) rainVel.set(S.wx, S.wy, S.wz);
     } catch (e) { }
