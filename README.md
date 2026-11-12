@@ -1,10 +1,14 @@
-# 亚瑟 3A 大作
+# King-Arthur-3a
 
-一款基于浏览器的国产 3A FPS 演示作品（WebGL 实时渲染），单机 HTML，双击即可运行。
+「亚瑟 3A 大作」——一款基于浏览器的国产 3A FPS 演示作品（WebGL 实时渲染），单机 HTML，双击即可运行。
 
 ## 在线试玩
 
-https://axiong5500.github.io/arthur-3a/
+https://axiong5500.github.io/King-Arthur-3a/
+
+## 仓库
+
+https://github.com/axiong5500/King-Arthur-3a
 
 ## 玩法
 
