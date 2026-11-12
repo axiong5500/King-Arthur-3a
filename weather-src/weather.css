@@ -1,0 +1,229 @@
+/* 变换多端的天气：天候系统面板与状态条（独立层，不接管游戏原有菜单） */
+#ka-wx-panel {
+  position: fixed;
+  inset: 0;
+  z-index: 9100;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 18px;
+  font-family: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", system-ui, sans-serif;
+  -webkit-tap-highlight-color: transparent;
+}
+#ka-wx-panel.on { display: flex; }
+
+.kw-veil {
+  position: absolute;
+  inset: 0;
+  background: rgba(4, 6, 8, .84);
+  -webkit-backdrop-filter: blur(7px);
+  backdrop-filter: blur(7px);
+}
+
+.kw-box {
+  position: relative;
+  width: 100%;
+  max-width: 900px;
+  max-height: calc(100% - 8px);
+  overflow: auto;
+  -webkit-overflow-scrolling: touch;
+  background: #0f1215;
+  border: 1px solid rgba(232, 228, 218, .16);
+  box-shadow: 0 30px 90px rgba(0, 0, 0, .65);
+  padding: clamp(16px, 3vh, 28px) clamp(14px, 3vw, 30px) clamp(14px, 2.4vh, 22px);
+}
+
+.kw-head { display: flex; flex-direction: column; gap: 6px; border-left: 3px solid #ffb347; padding-left: 12px; }
+.kw-k {
+  font: 500 10px/1 ui-monospace, "SFMono-Regular", Consolas, monospace;
+  letter-spacing: .24em;
+  text-transform: uppercase;
+  color: #ffb347;
+}
+.kw-title { margin: 0; font: 600 clamp(19px, 2.4vw, 25px)/1.15 inherit; letter-spacing: .06em; color: #e8e4da; }
+.kw-sub { margin: 2px 0 0; font-size: 12px; line-height: 1.5; color: rgba(232, 228, 218, .55); }
+
+.kw-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: clamp(12px, 2.4vh, 20px);
+}
+@media (max-width: 660px) { .kw-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; } }
+
+.kw-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding: 10px;
+  min-height: 112px;
+  background: #14171a;
+  border: 1px solid rgba(232, 228, 218, .14);
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+  transition: border-color .14s, background .14s;
+}
+.kw-card:hover { border-color: rgba(232, 228, 218, .42); background: #181c20; }
+.kw-card.is-on { border-color: #ffb347; background: #1a1a16; box-shadow: inset 0 0 0 1px #ffb347; }
+.kw-card:focus-visible { outline: 2px solid #ffb347; outline-offset: 2px; }
+
+/* 天候预览：上半区天顶色、下半区地平线色，模拟该天气的天空剖面 */
+.kw-swatch {
+  position: relative;
+  height: 58px;
+  border: 1px solid rgba(0, 0, 0, .55);
+  overflow: hidden;
+}
+.kw-swatch::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(255, 255, 255, .10), rgba(0, 0, 0, 0) 45%, rgba(0, 0, 0, .26));
+}
+.kw-swatch i {
+  position: absolute;
+  left: 0; right: 0; bottom: 0;
+  height: 22%;
+  background: rgba(0, 0, 0, .26);
+}
+.kw-num {
+  position: absolute;
+  right: 5px; top: 4px;
+  font: 500 9px/1 ui-monospace, Consolas, monospace;
+  letter-spacing: .1em;
+  color: rgba(255, 255, 255, .62);
+}
+
+.kw-name {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  font-size: clamp(13px, 1.4vw, 15px);
+  font-weight: 600;
+  letter-spacing: .08em;
+  color: #e8e4da;
+}
+.kw-tag {
+  flex: none;
+  font: 500 9px/1 ui-monospace, Consolas, monospace;
+  letter-spacing: .12em;
+  color: #ffb347;
+  border: 1px solid rgba(255, 179, 71, .6);
+  padding: 3px 4px 2px;
+}
+.kw-desc { font-size: 11px; line-height: 1.45; color: rgba(232, 228, 218, .5); }
+
+.kw-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: clamp(14px, 2.6vh, 22px);
+  padding-top: 12px;
+  border-top: 1px solid rgba(232, 228, 218, .12);
+  flex-wrap: wrap;
+}
+.kw-cur { font: 400 11px/1.4 ui-monospace, Consolas, monospace; letter-spacing: .06em; color: rgba(232, 228, 218, .6); }
+.kw-cur b { color: #ffb347; font-weight: 500; }
+
+.kw-toggle {
+  flex: none;
+  min-height: 44px;
+  padding: 2px 16px 0;
+  font: 500 12px/1 inherit;
+  letter-spacing: .12em;
+  color: rgba(232, 228, 218, .72);
+  background: transparent;
+  border: 1px solid rgba(232, 228, 218, .3);
+  cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+}
+.kw-toggle.is-on { color: #ffb347; border-color: #ffb347; }
+.kw-toggle:hover { border-color: rgba(255, 179, 71, .7); }
+
+.kw-close {
+  flex: none;
+  min-height: 44px;
+  padding: 2px 26px 0;
+  font: 600 14px/1 inherit;
+  letter-spacing: .2em;
+  color: #0b0d0f;
+  background: #ffb347;
+  border: 1px solid #ffb347;
+  cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+}
+.kw-close:hover { background: #ffc46e; }
+.kw-close:focus-visible { outline: 2px solid #e8e4da; outline-offset: 3px; }
+
+/* 标题页的天候状态条 */
+.ka-wx-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  margin-top: 8px;
+}
+.ka-wx-bar .kw-bar-k {
+  font: 500 10px/1.4 ui-monospace, "SFMono-Regular", Consolas, monospace;
+  letter-spacing: .16em;
+  text-transform: uppercase;
+  color: rgba(232, 228, 218, .48);
+}
+.ka-wx-bar .kw-bar-v { font: 600 12px/1.4 inherit; letter-spacing: .1em; color: #ffb347; }
+.ka-wx-bar .kw-bar-open { min-height: 40px; padding: 1px 16px 0; letter-spacing: .16em; }
+
+/* 游戏内常驻天候指示 */
+#ka-wx-hud {
+  position: fixed;
+  right: 14px;
+  top: calc(10px + env(safe-area-inset-top, 0px));
+  z-index: 8000;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px 6px 9px;
+  background: rgba(8, 10, 12, .5);
+  border: 1px solid rgba(232, 228, 218, .13);
+  font-family: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", system-ui, sans-serif;
+  pointer-events: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+#ka-wx-hud .kw-hud-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #ffb347;
+  box-shadow: 0 0 9px rgba(255, 179, 71, .85);
+}
+#ka-wx-hud .kw-hud-t {
+  font: 600 11px/1 inherit;
+  letter-spacing: .14em;
+  color: rgba(232, 228, 218, .92);
+  transition: color .3s;
+}
+#ka-wx-hud .kw-hud-s {
+  font: 500 9px/1 ui-monospace, Consolas, monospace;
+  letter-spacing: .12em;
+  color: rgba(232, 228, 218, .4);
+}
+#ka-wx-hud.is-shift .kw-hud-t { color: #ffb347; }
+
+/* 横屏矮屏：压缩头部与色块高度，保证一屏可容纳 */
+@media (orientation: landscape) and (max-height: 460px) {
+  .kw-box { padding: 12px 16px; }
+  .kw-swatch { height: 40px; }
+  .kw-card { min-height: 92px; padding: 8px; }
+  .kw-title { font-size: 17px; }
+  .kw-sub { display: none; }
+  .kw-foot { margin-top: 10px; padding-top: 8px; }
+  #ka-wx-hud { padding: 4px 8px; }
+}
