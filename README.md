@@ -43,12 +43,27 @@ python -m http.server 8080
 
 天气层的实现要点记在这里，避免以后重建时重复踩坑：雨量不能走官方 `setRain()`（受相机所在区域限制，外部调用不生效），要在渲染钩子里覆盖 `rain`/`rainSplash` 两个网格；闪电不要写 `post.flash`，改成临时抬 `sun.intensity` 与曝光、把天空色往白里拉。
 
+## 双人联机（`mp/`，实验版本）
+
+在线：https://axiong5500.github.io/King-Arthur-3a/mp/
+
+一份独立的联机版本，不影响上面的单机成品。打开后点右下角「双人联机」（或按 `M`）：一人「创建房间」拿到四位房号，另一人「加入」输入房号即可进同一局。
+
+架构是**房主权威**：房主本机照常模拟敌人 AI，把玩家与全部敌人的位置、朝向、血量按 20Hz 发给队友；队友本机冻结敌人的 `_update`，只负责渲染与射线反馈，敌人位置由网络插值驱动。队友开枪时把射线起点与方向发给房主，由房主用 `enemies.raycast` 裁决，再把命中结果发回来。走 PeerJS 的 WebRTC 数据通道，点对点直连，不需要自建服务器。
+
+**已知边界（V1）**：敌人只把房主识别为目标，队友不会被敌人攻击；任务进度（三处中继、波次、结算）两端各跑各的，没有同步；队友的命中结果依赖房主回包，有一帧左右的延迟。要补这些需要把敌人目标改成「最近的玩家」，并把 `objective:progress` 一起纳入同步。
+
+依赖 PeerJS 公共信令（`0.peerjs.com`）。如果哪天这个域名不可达，需要换成自建信令服务器，只改 `mp-src/net.js` 里 `peerOpts()` 的 `host/port/path` 即可，其余逻辑不动。
+
 ## 目录结构
 
 - `index.html` —— 成品（单文件，已注入枪械皮肤；未注入天气）
+- `mp/index.html` —— 双人联机版（皮肤 + 联机层，内联 PeerJS）
 - `build.ps1` —— 总构建，串联皮肤与天气两层注入（产出含天气的版本）
 - `skin-src/` —— 枪械皮肤源码（`skin.css` / `skin.js` / `build.ps1`）
 - `weather-src/` —— 天气系统源码（`weather.css` / `weather.js` / `build.ps1`）
+- `mp-src/` —— 双人联机源码（`net.css` / `net.js` / `peerjs.min.js` / `build.ps1`）
+- `源码结构说明.md` —— 原版源码的技术档案（渲染管线、参数表、子系统、运行时抓手）
 
 ## 构建
 
@@ -65,6 +80,20 @@ pwsh ./skin-src/build.ps1 -BaseHtml <未打补丁的原版.html> -OutHtml ./inde
 ```powershell
 pwsh ./build.ps1 -BaseHtml <未打补丁的原版.html> -OutHtml ./index.html
 ```
+
+要构建双人联机版（以当前离线成品为基底，再注入联机层）：
+
+```powershell
+pwsh ./mp-src/build.ps1 -BaseHtml ./index.html -OutHtml ./mp/index.html
+```
+
+联机层自检（验证信令与数据通道，不需要两台机器）：
+
+```
+mp/index.html?selftest=1
+```
+
+页面标题变成 `SELFTEST:OK` 即表示信令可达、通道双向可用。
 
 ## 说明
 
