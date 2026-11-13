@@ -7786,6 +7786,7 @@ errors ${window.__errors.length}${window.__errors.length?`
     if (!m || !m.t) return;
     if (m.t === 'hello') {
       setStatus((m.role === 'host' ? '房主' : '队友') + '已就绪', 'ok');
+      if (S.role === 'host') sendObjSnapshot();
       return;
     }
     if (m.t === 'st') {
@@ -7795,11 +7796,14 @@ errors ${window.__errors.length}${window.__errors.length?`
     if (m.t === 'shot' && S.role === 'host') { onRemoteShot(m); return; }
     if (m.t === 'hit') { onHitMsg(m); return; }
     if (m.t === 'dmg' && S.role === 'guest') { onDamageMsg(m); return; }
+    if (m.t === 'obj' || m.t === 'objs' || m.t === 'end') { onObjMsg(m); return; }
   }
 
   // ---------------- 主机 -------------------
+  var snapTick = 0;
   function hostTick() {
     if (!S.connected) return;
+    if (++snapTick >= CFG.hz * 2) { snapTick = 0; sendObjSnapshot(); }
     var p = G.player;
     var list = G.enemies.list || [];
     var arr = [];
@@ -8010,6 +8014,83 @@ errors ${window.__errors.length}${window.__errors.length?`
         return out;
       };
     }
+  }
+
+
+  // ---------------- 任务进度同步（中继 / 撤离结算）----------------
+  // 游戏本体的任务状态在 G.game.run（relays 每项 {id,cut,t,...}，cut/allCut/queue…），
+  // 切断中继的内部函数没有导出，但 G.game.debugCut() 会切断「第一个还没切的中继」。
+  // 所以收到队友切断某个中继时，临时把它排到 relays 最前面，再调 debugCut，由游戏自己走完整流程
+  // （标记变灰、广播、电台、波次、HUD、音效）。切断是单调的：只增不减，重复收到自动忽略。
+  // 波次由房主权威生成：任一方切断中继，房主这边都会按本体逻辑刷新下一波，并经现有状态包同步给队友。
+  var objApplying = false;   // 正在应用对方的事件：不回发，避免互相回声
+  var endApplying = false;
+
+  function missionRun() { return G.game && G.game.run; }
+  function toast(txt) { try { if (G.hud && G.hud.message) G.hud.message(txt, 3.2); } catch (e) { } }
+
+  function applyRemoteCut(id, quiet) {
+    var run = missionRun();
+    if (!run || !run.relays) return false;
+    var rel = null, i;
+    for (i = 0; i < run.relays.length; i++) if (run.relays[i].id === id) { rel = run.relays[i]; break; }
+    if (!rel || rel.cut) return false;
+    var orig = run.relays;
+    var ordered = [rel];
+    for (i = 0; i < orig.length; i++) if (orig[i] !== rel) ordered.push(orig[i]);
+    objApplying = true;
+    try { run.relays = ordered; G.game.debugCut(); }
+    catch (e) { console.error('[mp] 应用队友切断中继失败', e); }
+    finally { run.relays = orig; objApplying = false; }
+    if (!quiet) toast('队友切断了中继 ' + (rel.short || ''));
+    return true;
+  }
+
+  function cutIds() {
+    var run = missionRun(), out = [];
+    if (run && run.relays) for (var i = 0; i < run.relays.length; i++) if (run.relays[i].cut) out.push(run.relays[i].id);
+    return out;
+  }
+
+  function sendObjSnapshot() {
+    if (!S.connected) return;
+    send({ t: 'objs', c: cutIds() });
+  }
+
+  function onObjMsg(m) {
+    if (m.t === 'obj') { if (m.k === 'cut') applyRemoteCut(m.id); return; }
+    if (m.t === 'objs') {          // 快照：补上漏掉的（包括中途加入）
+      var ids = m.c || [], n = 0;
+      for (var i = 0; i < ids.length; i++) if (applyRemoteCut(ids[i], true)) n++;
+      if (n) toast('已同步队友的任务进度');
+      return;
+    }
+    if (m.t === 'end') applyRemoteEnd();
+  }
+
+  // 队友撤离成功 → 本机也撤离。撤离判定在游戏内部（玩家进入撤离点且 allCut），
+  // 所以先补齐中继，再把玩家挪到撤离点，让游戏本体自己走结算流程（评级、结算画面、音乐）。
+  function applyRemoteEnd() {
+    var g = G.game;
+    if (!g || g.state !== 'playing') return;
+    var run = missionRun(), ex = G.level && G.level.extraction;
+    if (!run || !ex || !ex.pos) return;
+    for (var i = 0; i < run.relays.length; i++) applyRemoteCut(run.relays[i].id, true);
+    toast('队友已撤离，任务完成');
+    endApplying = true;
+    try { G.player.pos.set(ex.pos.x, ex.pos.y, ex.pos.z); } catch (e) { endApplying = false; }
+  }
+
+  function missionHooks() {
+    if (!G.events || !G.events.on) return;
+    G.events.on('objective:done', function (p) {
+      if (objApplying || !S.connected || !p) return;
+      send({ t: 'obj', k: 'cut', id: p.id });
+    });
+    G.events.on('extraction:reached', function () {
+      if (endApplying) { endApplying = false; return; }
+      if (S.connected) send({ t: 'end' });
+    });
   }
 
   // ---------------- 加入者 -------------------
@@ -8345,6 +8426,7 @@ errors ${window.__errors.length}${window.__errors.length?`
     if (Q.get('selftest') === '1') { selftest(); return; }
     avatars.remote = makeAvatar();
     hostHooks();
+    missionHooks();
     buildUI();
 
     if (G.events && G.events.on) {

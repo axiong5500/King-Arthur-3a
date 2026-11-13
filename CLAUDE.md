@@ -40,7 +40,7 @@
 
 ## 联机层 `mp-src/net.js`（约 1400 行）
 **架构：房主权威。** 房主本机照常模拟敌人 AI，每 20Hz 发包；加入者冻结敌人 `_update`，只渲染 + 插值；加入者开火只发射线起点/方向，由房主 `enemies.raycast` 裁决再回 `hit`。走 PeerJS(WebRTC) 点对点，信令只在 `peerOpts()` 配置。
-- 消息：`hello` / `dmg`（房主→队友：`a`=伤害，`f`=来源坐标）/ `st`（`p`=对方玩家 `x,y,z,w=yaw,q=pitch,h=hp,a=alive,c=crouch,s=sprint,f=fire`；房主另带 `e`=敌人数组）/ `shot` / `hit` / `ping`。
+- 消息：`hello` / `dmg`（房主→队友：`a`=伤害，`f`=来源坐标）/ `obj`（`k:'cut',id`=某中继被切断，双向）/ `objs`（`c`=已切断 id 列表快照，房主每 2s + 收到 hello 时发）/ `end`（一方撤离成功，双向）/ `st`（`p`=对方玩家 `x,y,z,w=yaw,q=pitch,h=hp,a=alive,c=crouch,s=sprint,f=fire`；房主另带 `e`=敌人数组）/ `shot` / `hit` / `ping`。
 - 状态对象 `S`：`role(solo|host|guest)`、`remote`（队友最新状态）、`map`（房主敌人 id → 本地幽灵实例）。
 - 关键函数：`hostTick`、`guestSendSelf`、`onRemoteSelf`、`onRemoteShot`、`onState`、`driveGuest`、`spawnGhost`、`onHitMsg`、`onLocalFire`、`hostRoom/joinRoom`、`selftest`（`?selftest=1`，标题变 `SELFTEST:OK`）、`boot`（主循环：20Hz 发包 + rAF 驱动替身）。
 - 调试句柄：`window.__kaMp`（状态 S）、`window.__kaMpAvatar`（替身）。URL 参数 `?mproom=XXXX` 自动建房，`?room=XXXX` 自动加入。
@@ -58,12 +58,19 @@
 - 调试：`window.__kaMpApi.onData(msg)` 可直接喂一条网络消息（如 `{t:'dmg',a:12}`）。
 - 测试要点：无头软渲染几乎不出帧，别靠渲染帧；在页面里直接 `G.enemies.update(1/30)` 固定步长推进，设 `S.role='host'; S.connected=true; S.conn={send:fn}` 抓消息，`S.remote` 写队友位置；敌人需要视线（`physics.lineOfSight`）且朝向队友才会进入 engage，先用 `lineOfSight` 找开阔点。
 
+### 任务进度同步（net.js「任务进度同步」一节）
+- 本体任务状态在 `G.game.run`（`relays[{id,cut,t,short,o}]`、`cut`、`allCut`、`queue`…，id 来自关卡 objectives，两端一致：`relay_a/b/c`）。切断函数 `me()` 与撤离函数 `ee()` 都是闭包内部、未导出。
+- 切断：监听 `objective:done` → 发 `obj`；收到后 `applyRemoteCut`：把目标中继临时排到 `run.relays` 最前，调 `G.game.debugCut()`（它切「第一个未切」的），`finally` 还原顺序；`objApplying` 标志防回声。重复/已切断一律忽略（单调只增）。
+- 波次：`me()` 里自带 `F()` 刷怪队列，只在房主有效（加入者的 `enemies.spawn` 被钩子拦截），所以不论谁切断，房主都会刷下一波，敌人经 `st` 包同步。
+- 撤离结算：本体的 `ue()` 在「玩家进入撤离点半径且 `allCut` 且活着」时调 `ee()`。收到 `end` 后补齐中继，把 `G.player.pos` 挪到 `G.level.extraction.pos`，下一次 `G.game.update` 自然进入 `complete`；`endApplying` 防回声。本机撤离触发 `extraction:reached` → 发 `end`。
+- 测试：`window.__kaMpApi.onData({t:'obj',k:'cut',id:'relay_b'})` 等；用 `G.game.start({skipIntro:true})` 进入 playing，手动 `G.game.update(1/60)` / `G.enemies.update(1/30)` 推进。无头环境里页面被软渲染占满，`setInterval`（20Hz 发包与 2s 快照）几乎不触发，周期快照只能靠读代码确认。
+
 ## 验证方法（无真机时）
 - 无头 Chrome（`/usr/bin/google-chrome`，puppeteer-core，`--use-angle=swiftshader`）+ npm 的 `three@0.180.0`：写一个测试页 `eval` 注入 net.js 末尾暴露内部函数，多个替身并排渲染多姿态截图，再做数值检查（NaN、落地脚滑动速度、IK 到达率 `reach<1`、跳跃/倒地/复活/传送/跨 ±π 转身）。
 - 真实页面集成检查：打开 `mp/index.html`，设 `__kaMp.connected=true` 并写入 `__kaMp.remote` 模拟队友，确认 `__kaMpAvatar.remote.visible` 且无页面报错。这些脚本放在会话临时目录，不入库。
 
 ## 已知薄弱点 / 优化候选
-1. 联机：任务进度（三处中继、波次、结算）两端各跑各的，需同步；队友命中依赖回包，有约一帧延迟。（敌人按最近玩家选目标已完成）
+1. 联机：共享失败（两人都倒才算败，目前各自显示失败画面）；一方「重新部署」时另一端不跟着重置（快照只增不减）；波次出生点按房主位置选；队友命中依赖回包，有约一帧延迟。（敌人按最近玩家选目标、任务进度/结算同步均已完成）
 2. 敌人 AI 只有 patrol/alert 两态、无寻路；关卡是单图 + 三波固定敌人。
 3. 天气层源码完整但未启用：暴雨/雷暴低画质糊屏（雨量 >0.6），缺真机长时间验证。
 4. 补丁层依赖 `__G` 内部字段名，原版改名会连锁失效。
