@@ -6941,11 +6941,13 @@ errors ${window.__errors.length}${window.__errors.length?`
     g.add(Cyl(0.014, 0.014, 0.12, M.metal, 'z', 0, -0.004, 0.17));         // 伸缩托杆
     g.add(RB(0.034, 0.06, 0.07, 0.010, M.polymer, 0, -0.012, 0.215));      // 托垫
     g.add(RB(0.022, 0.009, 0.2, 0.003, M.metal, 0, 0.034, -0.04));         // 顶部导轨
-    g.add(RB(0.030, 0.034, 0.05, 0.006, M.polymer, 0, 0.058, -0.03));      // 瞄具
+    var smgSight = RB(0.030, 0.034, 0.05, 0.006, M.polymer, 0, 0.058, -0.03);
+    smgSight.userData.kaOptic = true; g.add(smgSight);                      // 瞄具（ADS 让位）
     g.add(Cyl(0.026, 0.026, 0.16, M.polymer, 'z', 0, 0, -0.19));           // 短护木
     g.add(Cyl(0.009, 0.009, 0.12, M.metal, 'z', 0, 0.002, -0.32));         // 枪管
     g.add(Cyl(0.013, 0.013, 0.045, M.metal, 'z', 0, 0.002, -0.40));        // 枪口
-    g.add(RB(0.008, 0.022, 0.01, 0.002, M.metal, 0, 0.024, -0.26));        // 准星
+    var smgFront = RB(0.008, 0.022, 0.01, 0.002, M.metal, 0, 0.024, -0.26);
+    smgFront.userData.kaOptic = true; g.add(smgFront);                      // 准星（ADS 让位）
     return g;
   }
 
@@ -6962,11 +6964,16 @@ errors ${window.__errors.length}${window.__errors.length?`
     g.add(RB(0.040, 0.096, 0.022, 0.006, M.dark, 0, -0.012, 0.325));       // 托底板
     g.add(Cyl(0.011, 0.011, 0.5, M.metal, 'z', 0, 0.002, -0.45));          // 长枪管
     g.add(Cyl(0.016, 0.016, 0.07, M.metal, 'z', 0, 0.002, -0.72));         // 枪口制退器
-    g.add(RB(0.024, 0.010, 0.2, 0.003, M.metal, 0, 0.040, -0.05));         // 镜座导轨
-    g.add(Cyl(0.020, 0.020, 0.16, M.dark, 'z', 0, 0.075, -0.04));          // 高倍镜身
-    g.add(Cyl(0.023, 0.023, 0.03, M.visor, 'z', 0, 0.075, -0.13));         // 物镜
-    g.add(Cyl(0.017, 0.017, 0.03, M.visor, 'z', 0, 0.075, 0.05));          // 目镜
-    g.add(RB(0.008, 0.026, 0.01, 0.002, M.metal, 0, 0.026, -0.30));        // 准星座
+    var sRail = RB(0.024, 0.010, 0.2, 0.003, M.metal, 0, 0.040, -0.05);
+    sRail.userData.kaOptic = true; g.add(sRail);                            // 镜座导轨
+    var sBody = Cyl(0.020, 0.020, 0.16, M.dark, 'z', 0, 0.075, -0.04);
+    sBody.userData.kaOptic = true; g.add(sBody);                            // 高倍镜身
+    var sObj = Cyl(0.023, 0.023, 0.03, M.visor, 'z', 0, 0.075, -0.13);
+    sObj.userData.kaOptic = true; g.add(sObj);                              // 物镜
+    var sEye = Cyl(0.017, 0.017, 0.03, M.visor, 'z', 0, 0.075, 0.05);
+    sEye.userData.kaOptic = true; g.add(sEye);                              // 目镜
+    var sFront = RB(0.008, 0.026, 0.01, 0.002, M.metal, 0, 0.026, -0.30);
+    sFront.userData.kaOptic = true; g.add(sFront);                          // 准星座
     return g;
   }
 
@@ -6979,7 +6986,8 @@ errors ${window.__errors.length}${window.__errors.length?`
     grip.rotation.x = -0.28; g.add(grip);                                   // 握把
     g.add(Cyl(0.008, 0.008, 0.05, M.metal, 'z', 0, 0.006, -0.115));         // 枪口内管
     g.add(RB(0.030, 0.010, 0.02, 0.003, M.dark, 0, -0.030, -0.04));         // 扳机护圈
-    g.add(RB(0.006, 0.020, 0.008, 0.002, M.metal, 0, 0.038, -0.08));        // 后照门
+    var pRear = RB(0.006, 0.020, 0.008, 0.002, M.metal, 0, 0.038, -0.08);
+    pRear.userData.kaOptic = true; g.add(pRear);                            // 后照门（ADS 让位）
     return g;
   }
 
@@ -6996,7 +7004,8 @@ errors ${window.__errors.length}${window.__errors.length?`
     g.add(Cyl(0.012, 0.012, 0.30, M.dark,  'z', 0, -0.022, -0.28));         // 管式弹仓
     g.add(RB(0.046, 0.052, 0.11, 0.010, M.wood, 0, -0.012, -0.20));        // 泵动护木
     g.add(Cyl(0.018, 0.018, 0.05, M.metal, 'z', 0, 0.006, -0.49));         // 枪口
-    g.add(RB(0.008, 0.026, 0.01, 0.002, M.metal, 0, 0.026, -0.12));        // 准星
+    var shFront = RB(0.008, 0.026, 0.01, 0.002, M.metal, 0, 0.026, -0.12);
+    shFront.userData.kaOptic = true; g.add(shFront);                        // 准星（ADS 让位）
     return g;
   }
 
@@ -7047,6 +7056,12 @@ errors ${window.__errors.length}${window.__errors.length?`
     modelGroup = null;
   }
 
+  /* 挂入时复位瞄具可见性：缓存模型可能残留上一次 ADS 的隐藏态 */
+  function resetOptic(g) {
+    if (!g) return;
+    g.traverse(function (o) { if (o.userData && o.userData.kaOptic) o.visible = true; });
+  }
+
   function apply(id, silent) {
     var gun = byId(id);
     cur = gun.id;
@@ -7070,7 +7085,7 @@ errors ${window.__errors.length}${window.__errors.length?`
       hideBody();
       detachModel();
       modelGroup = getModel(gun);
-      if (modelGroup) { modelGroup.position.set(0, 0, 0); modelGroup.scale.set(1, 1, 1); r.add(modelGroup); }
+      if (modelGroup) { modelGroup.position.set(0, 0, 0); modelGroup.scale.set(1, 1, 1); resetOptic(modelGroup); r.add(modelGroup); }
       w.name = gun.name;
     }
     if (!silent) syncUI();
@@ -7090,7 +7105,7 @@ errors ${window.__errors.length}${window.__errors.length?`
       hideBody();
       detachModel();
       modelGroup = getModel(gun);
-      if (modelGroup) { modelGroup.position.set(0, 0, 0); modelGroup.scale.set(1, 1, 1); r.add(modelGroup); }
+      if (modelGroup) { modelGroup.position.set(0, 0, 0); modelGroup.scale.set(1, 1, 1); resetOptic(modelGroup); r.add(modelGroup); }
       if (w.name !== gun.name) w.name = gun.name;
     }
   }
@@ -7248,8 +7263,10 @@ errors ${window.__errors.length}${window.__errors.length?`
     reattach();
   }, 500);
 
-  /* 瞄准补偿：ADS 时 root 前移转正到原配瞄具位姿，新枪外形不同，贴近镜头的
-     镜筒/枪身会进入近距视野挡成黑块；这里随 ads 插值把新模型向后、向下撤离中央。 */
+  /* 瞄准（ADS）处理：root 前移转正到原配瞄具位姿。模型作为 root 子级保持原配位姿，
+     不做整体偏移/缩放——否则模型会脱离随 root 走的本体手套，出现握空脱节。
+     黑洞只来自正对光轴近距的瞄具部件（镜筒/准星/照门），ADS 时把这些部件隐藏让位；
+     枪身、握把、护木、弹匣与本体手套保持原位，手套仍握住枪身。 */
   function adsCompensate() {
     var w = weapon();
     /* 非原配时持续压回本体枪身网格：本体换弹/空仓/枪口焰动画可能把已隐藏部件重新置为可见 */
@@ -7259,10 +7276,11 @@ errors ${window.__errors.length}${window.__errors.length?`
     if (!modelGroup) return;
     var force = /[?&]forceads=1/.test(location.search);
     var a = force ? 1 : ((w && typeof w.ads === 'number') ? w.ads : 0);
-    /* 局部 -Z 为枪口方向；ADS 时 root 向相机前移，这里把模型沿 -Z 推离镜头、向下让出中央 */
-    modelGroup.position.set(0, -0.055 * a, -0.075 * a);
-    var s = 1 - 0.10 * a;
-    modelGroup.scale.set(s, s, s);
+    /* ADS 进度过半后隐藏瞄具；腰射阶段保留瞄具外形 */
+    var showOptic = a < 0.5;
+    modelGroup.traverse(function (o) {
+      if (o.userData && o.userData.kaOptic) o.visible = showOptic;
+    });
   }
   (function adsLoop() { adsCompensate(); requestAnimationFrame(adsLoop); })();
 
