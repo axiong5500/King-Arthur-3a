@@ -914,6 +914,7 @@
     }
     if (m.t === 'shot' && S.role === 'host') { onRemoteShot(m); return; }
     if (m.t === 'hit') { onHitMsg(m); return; }
+    if (m.t === 'dmg' && S.role === 'guest') { onDamageMsg(m); return; }
   }
 
   // ---------------- 主机 -------------------
@@ -965,10 +966,169 @@
     var d = new THREE.Vector3(m.d[0], m.d[1], m.d[2]).normalize();
     var hit = null;
     try { hit = G.enemies.raycast(o, d, CFG.maxDist); } catch (e) { hit = null; }
+    try { var hr = G.enemies.TUNE && G.enemies.TUNE.hearRadius; if (hr) G.enemies.alert(o, hr); } catch (e) { }
     if (hit && hit.enemy) {
       var en = hit.enemy;
       en.hp -= CFG.dmg;
       send({ t: 'hit', i: en.id, h: Math.round(en.hp), a: en.alive ? 1 : 0, x: hit.point.x, y: hit.point.y, z: hit.point.z });
+    }
+  }
+
+
+  // ---------------- 敌人多目标（房主）----------------
+  // 游戏本体的敌人 AI 每次都读 G.player。做法：给队友造一个「代理玩家」，
+  // 在每个敌人 _update 的这一刻把 G.player 临时换成离它最近的活人，结束后换回，
+  // 这样巡逻、索敌、开火、近战、追击全部自动对最近的玩家生效，不用改本体。
+  var RP = null;
+  function makeRemoteProxy() {
+    RP = {
+      isRemoteProxy: true,
+      pos: new THREE.Vector3(), eye: new THREE.Vector3(), vel: new THREE.Vector3(),
+      speed: 0, alive: false, crouching: false, sprinting: false, health: 100,
+      // 敌人命中队友：伤害由房主判定，发给队友本机去扣血（自带受击反馈、死亡流程）
+      damage: function (amount, from) {
+        if (!RP.alive || !S.connected || !(amount > 0)) return;
+        var f = from && from.isVector3 ? [+from.x.toFixed(2), +from.y.toFixed(2), +from.z.toFixed(2)] : null;
+        send({ t: 'dmg', a: +(+amount).toFixed(1), f: f });
+      }
+    };
+    return RP;
+  }
+
+  function syncRemoteProxy() {
+    var r = S.remote;
+    if (!r) { RP.alive = false; return; }
+    var A = avatars.remote && avatars.remote.userData.anim;
+    var ok = A && A.init;
+    RP.pos.set(ok ? A.x : r.x, ok ? A.y : r.y, ok ? A.z : r.z);
+    RP.crouching = !!r.c;
+    RP.sprinting = !!r.s;
+    RP.eye.set(RP.pos.x, RP.pos.y + (r.c ? 1.15 : 1.68), RP.pos.z);
+    RP.vel.set(ok ? A.vx : 0, 0, ok ? A.vz : 0);
+    RP.speed = Math.sqrt(RP.vel.x * RP.vel.x + RP.vel.z * RP.vel.z);
+    RP.health = r.hp;
+    RP.alive = r.alive !== false;
+  }
+
+  // 离敌人最近的活人；加 25% 滞回，避免两人距离接近时目标来回跳
+  function pickTarget(e, real) {
+    var rAlive = real && real.alive !== false;
+    if (!RP.alive) return real;
+    if (!rAlive) return RP;
+    var dr = Math.hypot(e.pos.x - real.pos.x, e.pos.z - real.pos.z);
+    var dp = Math.hypot(e.pos.x - RP.pos.x, e.pos.z - RP.pos.z);
+    var pick;
+    if (e.__mpT === 'p') pick = dp < dr * 1.25 ? 'p' : 'r';
+    else pick = dr < dp * 1.25 ? 'r' : 'p';
+    e.__mpT = pick;
+    return pick === 'p' ? RP : real;
+  }
+
+  function wrapEnemy(e) {
+    if (!e || typeof e._update !== 'function' || e._update.__mp) return;
+    var orig = e._update;
+    var w = function (dt) {
+      if (S.role !== 'host' || !S.connected || !RP || !RP.alive) return orig.call(e, dt);
+      var real = G.player;
+      if (pickTarget(e, real) !== RP) return orig.call(e, dt);
+      G.player = RP;
+      try { return orig.call(e, dt); } finally { G.player = real; }
+    };
+    w.__mp = true;
+    e._update = w;
+  }
+
+  // 线段-线段最短距离平方（Ericson）
+  var SG = { d1: null, d2: null, r: null };
+  function segDist2(p1, q1, p2, q2) {
+    if (!SG.d1) { SG.d1 = new THREE.Vector3(); SG.d2 = new THREE.Vector3(); SG.r = new THREE.Vector3(); }
+    var d1 = SG.d1.copy(q1).sub(p1), d2 = SG.d2.copy(q2).sub(p2), r = SG.r.copy(p1).sub(p2);
+    var a = d1.dot(d1), e = d2.dot(d2), f = d2.dot(r), s, t;
+    if (a <= 1e-9 && e <= 1e-9) return r.dot(r);
+    if (a <= 1e-9) { s = 0; t = clamp(f / e, 0, 1); }
+    else {
+      var c = d1.dot(r);
+      if (e <= 1e-9) { t = 0; s = clamp(-c / a, 0, 1); }
+      else {
+        var b = d1.dot(d2), den = a * e - b * b;
+        s = den > 1e-9 ? clamp((b * f - c * e) / den, 0, 1) : 0;
+        t = (b * s + f) / e;
+        if (t < 0) { t = 0; s = clamp(-c / a, 0, 1); }
+        else if (t > 1) { t = 1; s = clamp((b - c) / a, 0, 1); }
+      }
+    }
+    var x = r.x + d1.x * s - d2.x * t, y = r.y + d1.y * s - d2.y * t, z = r.z + d1.z * s - d2.z * t;
+    return x * x + y * y + z * z;
+  }
+
+  // 机械飞鸥的弹丸由全局弹丸系统结算，只会检测房主；这里补一遍对队友的检测
+  var boltPrev = [], bvA = null, bvB = null, bvP = null, bvQ = null;
+  function hostBolts(dt) {
+    var bolts = G.enemies.debug && G.enemies.debug.bolts;
+    var T = G.enemies.TUNE && G.enemies.TUNE.gull;
+    if (!bolts || !T || !RP || !RP.alive) { boltPrev.length = 0; return; }
+    if (!bvA) { bvA = new THREE.Vector3(); bvB = new THREE.Vector3(); bvP = new THREE.Vector3(); bvQ = new THREE.Vector3(); }
+    var step = T.boltSpeed * Math.min(dt, 0.05);
+    for (var i = 0; i < bolts.length; i++) {
+      var b = bolts[i];
+      if (!b || !b.on) { boltPrev[i] = null; continue; }
+      var prev = boltPrev[i];
+      if (!prev) prev = boltPrev[i] = new THREE.Vector3();
+      var seg0 = bvP;
+      if (prev.__valid) seg0.copy(prev); else seg0.copy(b.pos).addScaledVector(b.dir, -step);
+      bvQ.copy(b.pos);
+      bvA.set(RP.pos.x, RP.pos.y + 0.35, RP.pos.z);
+      bvB.set(RP.pos.x, RP.pos.y + (RP.crouching ? 1 : 1.5), RP.pos.z);
+      if (segDist2(seg0, bvQ, bvA, bvB) < 0.36 * 0.36) {
+        b.on = false;
+        prev.__valid = false;
+        RP.damage(T.boltDamage, b.from);
+        continue;
+      }
+      prev.copy(b.pos);
+      prev.__valid = true;
+    }
+  }
+
+  // 自爆飞鸥的爆炸同理：本体只伤房主，补算队友
+  function hostExplosion(n, rad, dmg) {
+    if (!RP || !RP.alive || !n) return;
+    rad = rad == null ? 5 : rad;
+    dmg = dmg == null ? 80 : dmg;
+    var c = new THREE.Vector3(RP.pos.x, RP.pos.y + 1, RP.pos.z);
+    var l = c.distanceTo(n);
+    if (l >= rad) return;
+    var los = true;
+    try { los = G.physics.lineOfSight(n, c); } catch (e) { los = true; }
+    if (los) RP.damage(dmg * 0.5 * (1 - l / rad), n);
+  }
+
+  var hostHooked = false;
+  function hostHooks() {
+    if (hostHooked) return;
+    hostHooked = true;
+    makeRemoteProxy();
+    var origUpdate = G.enemies.update;
+    G.enemies.update = function (dt) {
+      if (S.role === 'host' && S.connected) {
+        try {
+          syncRemoteProxy();
+          var list = G.enemies.list || [];
+          for (var i = 0; i < list.length; i++) wrapEnemy(list[i]);
+        } catch (e) { console.error('[mp] 目标选择准备失败', e); }
+        origUpdate.call(G.enemies, dt);
+        try { hostBolts(dt); } catch (e) { console.error('[mp] 弹丸检测失败', e); }
+      } else {
+        origUpdate.call(G.enemies, dt);
+      }
+    };
+    if (G.combat && typeof G.combat.explode === 'function') {
+      var origExplode = G.combat.explode;
+      G.combat.explode = function (n, rad, dmg) {
+        var out = origExplode.apply(G.combat, arguments);
+        if (S.role === 'host' && S.connected) { try { hostExplosion(n, rad, dmg); } catch (e) { } }
+        return out;
+      };
     }
   }
 
@@ -1092,6 +1252,14 @@
       }
     }
     if (m.a) flashHit(m);
+  }
+
+  // 房主判定敌人打中了队友：在队友本机走游戏自己的受击流程（扣血、屏幕反馈、死亡）
+  function onDamageMsg(m) {
+    var p = G.player;
+    if (!p || !(m.a > 0) || typeof p.damage !== 'function') return;
+    var from = m.f && m.f.length === 3 ? new THREE.Vector3(m.f[0], m.f[1], m.f[2]) : undefined;
+    try { p.damage(m.a, from); } catch (e) { console.error('[mp] 受击处理失败', e); }
   }
 
   function flashHit(m) {
@@ -1296,6 +1464,7 @@
   function boot() {
     if (Q.get('selftest') === '1') { selftest(); return; }
     avatars.remote = makeAvatar();
+    hostHooks();
     buildUI();
 
     if (G.events && G.events.on) {
@@ -1351,6 +1520,7 @@
     }
 
     window.__kaMp = S;
+    window.__kaMpApi = { onData: onData };   // 测试入口：直接喂一条网络消息
     window.__kaMpAvatar = avatars;
   }
 
