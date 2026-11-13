@@ -62,10 +62,10 @@
   function makeAvatar() {
     var g = new THREE.Group();
     g.name = 'mp-avatar';
-    var skin = new THREE.MeshStandardMaterial({ color: 0x2f3740, roughness: 0.78, metalness: 0.18 });
-    var cloth = new THREE.MeshStandardMaterial({ color: 0x1d2329, roughness: 0.92, metalness: 0.05 });
+    var skin = new THREE.MeshStandardMaterial({ color: 0x2f3740, roughness: 0.78, metalness: 0.18, emissive: 0x141b21, emissiveIntensity: 0.55 });
+    var cloth = new THREE.MeshStandardMaterial({ color: 0x1d2329, roughness: 0.92, metalness: 0.05, emissive: 0x0e1419, emissiveIntensity: 0.45 });
     var visor = new THREE.MeshStandardMaterial({ color: 0x0d1418, roughness: 0.3, metalness: 0.6 });
-    var lamp = new THREE.MeshStandardMaterial({ color: 0x6fbf73, emissive: 0x6fbf73, emissiveIntensity: 2.2, roughness: 1 });
+    var lamp = new THREE.MeshStandardMaterial({ color: 0x6fbf73, emissive: 0x6fbf73, emissiveIntensity: 3.4, roughness: 1 });
 
     var torso = new THREE.Mesh(new THREE.CapsuleGeometry(0.23, 0.62, 4, 10), cloth);
     torso.position.y = 1.02;
@@ -81,9 +81,14 @@
     vis.position.set(0, 1.57, -0.12);
     g.add(vis);
 
-    var tip = new THREE.Mesh(new THREE.SphereGeometry(0.035, 8, 8), lamp);
+    var tip = new THREE.Mesh(new THREE.SphereGeometry(0.055, 10, 8), lamp);
     tip.position.set(0, 1.74, 0);
     g.add(tip);
+
+    // 头顶识别点：MeshBasicMaterial 不受光照影响，暗处与远处也能一眼找到队友
+    var marker = new THREE.Mesh(new THREE.SphereGeometry(0.065, 10, 8), new THREE.MeshBasicMaterial({ color: 0x9bf0a6 }));
+    marker.position.set(0, 2.02, 0);
+    g.add(marker);
 
     [-1, 1].forEach(function (sx) {
       var leg = new THREE.Mesh(new THREE.CapsuleGeometry(0.105, 0.55, 4, 8), cloth);
@@ -143,7 +148,8 @@
 
   function bindConn(conn) {
     S.conn = conn;
-    conn.on('open', function () {
+    function onReady() {
+      if (S.connected) return;
       S.connected = true;
       setStatus(
         S.role === 'host' ? '队友已加入，开始同步' : '已连接到房主',
@@ -153,7 +159,14 @@
       updateHud();
       // 首包：告诉对方自己是谁
       send({ t: 'hello', role: S.role, name: S.role === 'host' ? '房主' : '队友' });
-    });
+    }
+    // PeerJS 的 open 只派发一次；如果绑定时连接已经就绪，必须立刻进入就绪态，
+    // 否则 S.connected 永远为 false，位置包与替身都会被跳过。
+    if (conn.open) {
+      try { onReady(); } catch (e) { }
+    } else {
+      conn.on('open', onReady);
+    }
     conn.on('data', onData);
     conn.on('close', function () {
       S.connected = false;
@@ -541,13 +554,17 @@
       B.on('open', function () {
         var c = B.connect(nameA, { reliable: true });
         c.on('error', function (e) { fail('conn:' + (e && e.type)); });
-        c.on('open', function () { c.send({ t: 'ping', seq: 7 }); });
+        c.on('open', function () {
+          // 回归：对已 open 的连接调用 bindConn，必须立刻进入已连接态
+          try { bindConn(c); } catch (e) { fail('bind:' + (e && e.message)); return; }
+          c.send({ t: 'ping', seq: 7 });
+        });
         c.on('data', function (m) {
           if (done) return;
           done = true;
           clearTimeout(timer);
-          var ok = m && m.t === 'pong' && m.echo === 7;
-          document.title = 'SELFTEST:' + (ok ? 'OK' : 'BADPAYLOAD') + ':' + JSON.stringify(m);
+          var ok = m && m.t === 'pong' && m.echo === 7 && S.connected === true;
+          document.title = 'SELFTEST:' + (ok ? 'OK' : 'BADPAYLOAD') + ':' + JSON.stringify(m) + ':connected=' + S.connected;
           try { A.destroy(); B.destroy(); } catch (e) { }
         });
       });
@@ -637,5 +654,4 @@
     });
   }
 
-  boot();
 })();
