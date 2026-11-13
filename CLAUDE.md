@@ -37,7 +37,7 @@
 - 玩家：`player.pos/yaw/pitch/health/alive/crouching/sprinting`，**pitch 正值 = 抬头**，眼高 1.68，走速 3.8、冲刺 6.4。
 - 敌人：`enemies.list/spawn/update/raycast`，类型 `gull`（机械飞鸥）与 `hound`（机械猎犬）。
 - 事件：`events.on('weapon:fire' | 'enemy:killed' | …)`。渲染：`render.sun / exposure / sky.material.uniforms / tune / post`。
-- 武器：`G.weapon.root` 是挂在 `camera` 下的 viewmodel 组（组名 `viewmodel-pac9`，枪口朝 -Z，握把局部坐标 `[0,-.1,.073]`）；对外字段 `name/ammo/reserve/magSize/spread/state`，方法 `setVisible/reset/setWetness`。伤害/射速/弹匣/后坐/散布封装在武器模块内部、未导出。兵器库调试句柄 `window.__kaArsenal`：新模型作为 root 子级挂入（自动继承 root 位姿与弹簧动画），逐个隐藏 root 内本体自带网格；root 组的可见性不主动改，交给本体状态机（进任务 `setVisible(true)`、回标题 `setVisible(false)`）——本体开火判定 `e.visible` 与手部逻辑都挂在 root 上，整组隐藏会锁死开火，而强制 `visible=true` 又会让武器模型露到标题视角形成黑块；HUD 每帧读 `G.weapon.name` 刷新枪名，切换时直接改 `weapon.name`。
+- 武器：`G.weapon.root` 是挂在 `camera` 下的 viewmodel 组（组名 `viewmodel-pac9`，枪口朝 -Z，握把局部坐标 `[0,-.1,.073]`）；对外字段 `name/ammo/reserve/magSize/spread/state`，方法 `setVisible/reset/setWetness`。伤害/射速/弹匣/后坐/散布封装在武器模块内部、未导出。兵器库调试句柄 `window.__kaArsenal`：新模型作为 root 子级挂入（自动继承 root 位姿与弹簧动画），逐个隐藏 root 内本体**枪身**网格，但手套/手部网格（材质名 `glove_fabric`）保留以维持手握；root 组的可见性不主动改，交给本体状态机（进任务 `setVisible(true)`、回标题 `setVisible(false)`）——本体开火判定 `e.visible` 与手部逻辑都挂在 root 上，整组隐藏会锁死开火，而强制 `visible=true` 又会让武器模型露到标题视角形成黑块；HUD 每帧读 `G.weapon.name` 刷新枪名，切换时直接改 `weapon.name`。非原配时每帧压回被本体动画重新置为可见的枪身网格，并按 `weapon.ads` 对新模型做 ADS 后移/下移补偿。
 - 陷阱：`ground.setRain()` 外部调用不生效，要在渲染钩子里覆盖 `uRain`；闪电不要写 `post.flash`，改抬 `sun.intensity`；场景无 `fog`，远景靠 `volFarHaze`。
 
 ## 联机层 `mp-src/net.js`（约 1400 行）
@@ -77,7 +77,7 @@
 3. 天气层源码完整但未启用：暴雨/雷暴低画质糊屏（雨量 >0.6），缺真机长时间验证。
 4. 补丁层依赖 `__G` 内部字段名，原版改名会连锁失效。
 5. 联机依赖 PeerJS 公共信令 `0.peerjs.com`，不可达时需自建信令。
-6. 兵器库四把新枪是简化程序化外形，手部为简化手套块（非本体骨骼手）；模型只跟随 root 整体位姿，没有独立换弹/拉栓动画；手枪尺寸偏小、握姿贴合度一般。
+6. 兵器库四把新枪是简化程序化外形；手部复用本体手套/手部网格（`glove_fabric`，换模时保留不隐藏），并非为新枪重建骨骼手，握姿按原配握把/护木位置贴合，手枪等短枪的左手贴合度一般。模型只跟随 root 整体位姿，没有独立换弹/拉栓动画。瞄准时（ADS）补丁按 `weapon.ads` 插值把新模型向后/向下撤离镜头中央，补偿量为近似值，真机若仍有贴近镜头的遮挡需调 `adsCompensate` 里的偏移/缩放；`?forceads=1` 可在不开镜的情况下强制满补偿便于排查。
 
 ## 工作环境注意
 - 克隆是浅克隆：推送新分支后若钩子误报“无远程分支”，先 `git fetch --depth=1 origin +refs/heads/X:refs/remotes/origin/X` 补跟踪引用；合并前遇 “unrelated histories” 用 `--depth=2` 补深度。

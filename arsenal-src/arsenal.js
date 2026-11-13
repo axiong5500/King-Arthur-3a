@@ -78,17 +78,8 @@
       dark:    new THREE.MeshStandardMaterial({ color: 0x17181a, roughness: .55, metalness: .3,  emissive: 0x0c0d0e, emissiveIntensity: .15 }),
       polymer: new THREE.MeshStandardMaterial({ color: 0x25292a, roughness: .62, metalness: .15, emissive: 0x111415, emissiveIntensity: .15 }),
       wood:    new THREE.MeshStandardMaterial({ color: 0x4a3826, roughness: .7,  metalness: .05, emissive: 0x1a120a, emissiveIntensity: .12 }),
-      glove:   new THREE.MeshStandardMaterial({ color: 0x24272a, roughness: .88, metalness: .04, emissive: 0x101214, emissiveIntensity: .2 }),
       visor:   new THREE.MeshStandardMaterial({ color: 0x0f1518, roughness: .12, metalness: .95, emissive: 0x23353b, emissiveIntensity: .2 })
     };
-  }
-
-  /* 简化双手：贴在握把与护木位置，避免换模后枪身悬空 */
-  function addHands(g, M, gripZ, foreZ) {
-    var R = new THREE.Group(), L = new THREE.Group();
-    R.add(RB(0.050, 0.086, 0.078, 0.014, M.glove, 0, -0.090, gripZ));
-    L.add(RB(0.074, 0.046, 0.090, 0.014, M.glove, -0.004, -0.066, foreZ));
-    g.add(R); g.add(L);
   }
 
   /* ---- 冲锋枪：紧凑、短管、伸缩托 ---- */
@@ -108,7 +99,6 @@
     g.add(Cyl(0.009, 0.009, 0.12, M.metal, 'z', 0, 0.002, -0.32));         // 枪管
     g.add(Cyl(0.013, 0.013, 0.045, M.metal, 'z', 0, 0.002, -0.40));        // 枪口
     g.add(RB(0.008, 0.022, 0.01, 0.002, M.metal, 0, 0.024, -0.26));        // 准星
-    addHands(g, M, 0.09, -0.19);
     return g;
   }
 
@@ -130,7 +120,6 @@
     g.add(Cyl(0.023, 0.023, 0.03, M.visor, 'z', 0, 0.075, -0.13));         // 物镜
     g.add(Cyl(0.017, 0.017, 0.03, M.visor, 'z', 0, 0.075, 0.05));          // 目镜
     g.add(RB(0.008, 0.026, 0.01, 0.002, M.metal, 0, 0.026, -0.30));        // 准星座
-    addHands(g, M, 0.10, -0.28);
     return g;
   }
 
@@ -144,7 +133,6 @@
     g.add(Cyl(0.008, 0.008, 0.05, M.metal, 'z', 0, 0.006, -0.115));         // 枪口内管
     g.add(RB(0.030, 0.010, 0.02, 0.003, M.dark, 0, -0.030, -0.04));         // 扳机护圈
     g.add(RB(0.006, 0.020, 0.008, 0.002, M.metal, 0, 0.038, -0.08));        // 后照门
-    addHands(g, M, 0.055, -0.05);
     return g;
   }
 
@@ -162,7 +150,6 @@
     g.add(RB(0.046, 0.052, 0.11, 0.010, M.wood, 0, -0.012, -0.20));        // 泵动护木
     g.add(Cyl(0.018, 0.018, 0.05, M.metal, 'z', 0, 0.006, -0.49));         // 枪口
     g.add(RB(0.008, 0.026, 0.01, 0.002, M.metal, 0, 0.026, -0.12));        // 准星
-    addHands(g, M, 0.095, -0.20);
     return g;
   }
 
@@ -173,24 +160,32 @@
   function weapon() { return G && G.weapon; }
   function root() { var w = weapon(); return w && w.root; }
 
-  var bodyMeshes = [];   // 本体自带网格（首次拿到 root 时缓存原始 visible）
+  var bodyMeshes = [];   // 本体枪身网格（首次拿到 root 时缓存原始 visible）
+  var gloveMeshes = [];  // 本体手套/手部网格：换模后保留，维持手握效果
   var modelGroup = null; // 当前挂入 root 的新模型组
   var lastRoot = null;
 
+  function isGlove(o) {
+    var m = o.material;
+    return !!(m && (m.name === 'glove_fabric' || (Array.isArray(m) && m.some(function (x) { return x && x.name === 'glove_fabric'; }))));
+  }
+
   function collectBodyMeshes(r) {
-    bodyMeshes = [];
+    bodyMeshes = []; gloveMeshes = [];
     r.traverse(function (o) {
       if (o.isMesh) {
         o.userData.kaArsenalOrigVisible = o.visible;
-        bodyMeshes.push(o);
+        (isGlove(o) ? gloveMeshes : bodyMeshes).push(o);
       }
     });
   }
 
   function restoreBody() {
     for (var i = 0; i < bodyMeshes.length; i++) bodyMeshes[i].visible = bodyMeshes[i].userData.kaArsenalOrigVisible;
+    for (var j = 0; j < gloveMeshes.length; j++) gloveMeshes[j].visible = gloveMeshes[j].userData.kaArsenalOrigVisible;
   }
   function hideBody() {
+    /* 只隐藏本体枪身；手套/手部保留可见，让新枪仍被本体双手握住 */
     for (var i = 0; i < bodyMeshes.length; i++) bodyMeshes[i].visible = false;
   }
 
@@ -228,7 +223,7 @@
       hideBody();
       detachModel();
       modelGroup = getModel(gun);
-      if (modelGroup) r.add(modelGroup);
+      if (modelGroup) { modelGroup.position.set(0, 0, 0); modelGroup.scale.set(1, 1, 1); r.add(modelGroup); }
       w.name = gun.name;
     }
     if (!silent) syncUI();
@@ -248,7 +243,7 @@
       hideBody();
       detachModel();
       modelGroup = getModel(gun);
-      if (modelGroup) r.add(modelGroup);
+      if (modelGroup) { modelGroup.position.set(0, 0, 0); modelGroup.scale.set(1, 1, 1); r.add(modelGroup); }
       if (w.name !== gun.name) w.name = gun.name;
     }
   }
@@ -405,6 +400,24 @@
     if (G.THREE && !THREE) THREE = G.THREE;
     reattach();
   }, 500);
+
+  /* 瞄准补偿：ADS 时 root 前移转正到原配瞄具位姿，新枪外形不同，贴近镜头的
+     镜筒/枪身会进入近距视野挡成黑块；这里随 ads 插值把新模型向后、向下撤离中央。 */
+  function adsCompensate() {
+    var w = weapon();
+    /* 非原配时持续压回本体枪身网格：本体换弹/空仓/枪口焰动画可能把已隐藏部件重新置为可见 */
+    if (!byId(cur).builtin) {
+      for (var i = 0; i < bodyMeshes.length; i++) bodyMeshes[i].visible = false;
+    }
+    if (!modelGroup) return;
+    var force = /[?&]forceads=1/.test(location.search);
+    var a = force ? 1 : ((w && typeof w.ads === 'number') ? w.ads : 0);
+    /* 局部 -Z 为枪口方向；ADS 时 root 向相机前移，这里把模型沿 -Z 推离镜头、向下让出中央 */
+    modelGroup.position.set(0, -0.055 * a, -0.075 * a);
+    var s = 1 - 0.10 * a;
+    modelGroup.scale.set(s, s, s);
+  }
+  (function adsLoop() { adsCompensate(); requestAnimationFrame(adsLoop); })();
 
   window.__kaArsenal = {
     list: function () { return GUNS.map(function (s) { return s.id + ':' + s.name; }); },
