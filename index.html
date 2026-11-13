@@ -604,31 +604,6 @@ kbd { display: inline-block; font: 500 10px/1 var(--f-mono); color: var(--bone);
   background: linear-gradient(180deg, rgba(255, 255, 255, .22), rgba(255, 255, 255, 0) 55%, rgba(0, 0, 0, .3));
 }
 
-/* 标题页的兵器状态条（与皮肤状态条并列） */
-.ka-arsenal-bar {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 6px 10px;
-  margin-top: 10px;
-}
-.ka-arsenal-k {
-  font: 500 10px/1.4 ui-monospace, "SFMono-Regular", Consolas, monospace;
-  letter-spacing: .16em;
-  text-transform: uppercase;
-  color: rgba(232, 228, 218, .48);
-}
-.ka-arsenal-v {
-  font: 600 12px/1.4 inherit;
-  letter-spacing: .1em;
-  color: #7fb5c9;
-}
-.ka-arsenal-bar .ka-arsenal-open {
-  min-height: 40px;
-  padding: 1px 16px 0;
-  letter-spacing: .16em;
-}
-
 .ka-name {
   display: flex;
   align-items: center;
@@ -6887,10 +6862,8 @@ errors ${window.__errors.length}${window.__errors.length?`
 
   var cur = load();
   var G = null, THREE = null;
-  var proxy = null;          // 挂在 camera 下，跟随本体 root 的动画位姿
   var cache = {};            // 已构建的程序化模型
   var stockName = null;      // 本体原配枪名（首次读取后缓存）
-  var lastRoot = null;       // 上一次拿到的本体 root（开局/重开后会重建）
 
   /* ---------- 程序化建模积木（坐标约定：枪口朝 -Z，与本体 PAC-9 一致） ---------- */
   var geoCache = {};
@@ -7030,24 +7003,42 @@ errors ${window.__errors.length}${window.__errors.length?`
   }
 
   /* ---------- 运行时装配 ---------- */
+  /* 方案：root 组本身始终保持可见（本体开火判定、弹簧动画、手部逻辑都挂在 root 上，
+     隐藏整组会锁死开火）；只把 root 内本体自带的网格逐个隐藏，新模型作为 root 子级挂入，
+     自动继承 root 的位姿与动画。 */
   function weapon() { return G && G.weapon; }
   function root() { var w = weapon(); return w && w.root; }
 
-  function ensureProxy() {
-    if (proxy) return proxy;
-    var cam = G.camera;
-    if (!cam) return null;
-    proxy = new THREE.Group();
-    proxy.name = 'ka-arsenal-proxy';
-    proxy.visible = false;
-    cam.add(proxy);
-    return proxy;
+  var bodyMeshes = [];   // 本体自带网格（首次拿到 root 时缓存原始 visible）
+  var modelGroup = null; // 当前挂入 root 的新模型组
+  var lastRoot = null;
+
+  function collectBodyMeshes(r) {
+    bodyMeshes = [];
+    r.traverse(function (o) {
+      if (o.isMesh) {
+        o.userData.kaArsenalOrigVisible = o.visible;
+        bodyMeshes.push(o);
+      }
+    });
+  }
+
+  function restoreBody() {
+    for (var i = 0; i < bodyMeshes.length; i++) bodyMeshes[i].visible = bodyMeshes[i].userData.kaArsenalOrigVisible;
+  }
+  function hideBody() {
+    for (var i = 0; i < bodyMeshes.length; i++) bodyMeshes[i].visible = false;
   }
 
   function getModel(gun) {
     if (gun.builtin) return null;
     if (!cache[gun.id]) cache[gun.id] = gun.build();
     return cache[gun.id];
+  }
+
+  function detachModel() {
+    if (modelGroup && modelGroup.parent) modelGroup.parent.remove(modelGroup);
+    modelGroup = null;
   }
 
   function apply(id, silent) {
@@ -7059,57 +7050,42 @@ errors ${window.__errors.length}${window.__errors.length?`
     if (!w || !r) { syncUI(); return; }
 
     if (!stockName) stockName = w.name || '亚瑟九式突击步枪';
+    if (r !== lastRoot) { lastRoot = r; collectBodyMeshes(r); }
 
     if (gun.builtin) {
-      /* 原配：恢复本体模型，隐藏代理组 */
+      /* 原配：恢复本体网格，摘除新模型 */
       r.visible = true;
-      if (proxy) proxy.visible = false;
+      restoreBody();
+      detachModel();
       w.name = stockName;
     } else {
-      var px = ensureProxy();
-      if (!px) { syncUI(); return; }
-      /* 清空代理组内旧模型，挂入新外形 */
-      while (px.children.length) px.remove(px.children[0]);
-      px.add(getModel(gun));
-      px.visible = true;
-      r.visible = false;
+      r.visible = true;
+      hideBody();
+      detachModel();
+      modelGroup = getModel(gun);
+      if (modelGroup) r.add(modelGroup);
       w.name = gun.name;
     }
     if (!silent) syncUI();
   }
 
-  /* 每帧跟随：代理组复制本体 root 的局部位姿（后坐/晃动/手臂摆动由本体弹簧驱动 root） */
-  function follow() {
-    var r = root(), px = proxy;
-    if (!r || !px) return;
-    if (cur === 'pac9') return;
-    px.position.copy(r.position);
-    px.quaternion.copy(r.quaternion);
-    px.scale.copy(r.scale);
-  }
-
-  /* 开局/重开后 weapon 可能重建：重新挂接并校准外形与枪名 */
+  /* 开局/重开后 weapon 可能重建：重新收集本体网格并校准外形与枪名 */
   function reattach() {
     var w = weapon(), r = root();
     if (!w || !r) return;
-    if (r !== lastRoot) {
-      lastRoot = r;
-      proxy = null;
-      ensureProxy();
-    }
+    if (r !== lastRoot) { lastRoot = r; collectBodyMeshes(r); }
     var gun = byId(cur);
     if (gun.builtin) {
       r.visible = true;
-      if (proxy) proxy.visible = false;
+      restoreBody();
+      detachModel();
       if (w.name !== stockName && stockName) w.name = stockName;
     } else {
-      var px = ensureProxy();
-      if (px) {
-        while (px.children.length) px.remove(px.children[0]);
-        px.add(getModel(gun));
-        px.visible = true;
-      }
-      r.visible = false;
+      r.visible = true;
+      hideBody();
+      detachModel();
+      modelGroup = getModel(gun);
+      if (modelGroup) r.add(modelGroup);
       if (w.name !== gun.name) w.name = gun.name;
     }
   }
@@ -7178,8 +7154,6 @@ errors ${window.__errors.length}${window.__errors.length?`
       }
     }
     if (curText) curText.textContent = name;
-    var shown = document.querySelectorAll('.ka-arsenal-v');
-    for (var j = 0; j < shown.length; j++) shown[j].textContent = name;
   }
 
   function open() { if (!panel) buildPanel(); syncUI(); panel.classList.add('on'); }
@@ -7193,36 +7167,30 @@ errors ${window.__errors.length}${window.__errors.length?`
   }, true);
 
   /* ---------- 菜单入口（标题栏 + 暂停菜单，与皮肤层并列、互不覆盖） ---------- */
-  function makeBar() {
-    var bar = document.createElement('div');
-    bar.className = 'ka-arsenal-bar';
-    bar.innerHTML = '<span class="ka-arsenal-k">兵器库 · 当前</span>' +
-      '<b class="ka-arsenal-v">' + byId(cur).name + '</b>' +
-      '<button class="btn small ka-arsenal-open" type="button" data-arsenal-entry="1">更换兵器</button>';
-    bar.querySelector('.ka-arsenal-open').addEventListener('click', function (ev) {
+  /* 标题态只在 .m-actions 按钮行内追加一个入口按钮，不新增整行状态条，
+     避免把标题菜单撑高、把“开始行动”按钮顶进位置卡片浮层的遮挡区。 */
+  function makeEntryBtn(label) {
+    var btn = document.createElement('button');
+    btn.className = 'btn';
+    btn.type = 'button';
+    btn.setAttribute('data-arsenal-entry', '1');
+    btn.textContent = label;
+    btn.addEventListener('click', function (ev) {
       ev.preventDefault(); ev.stopPropagation(); open();
     });
-    return bar;
+    return btn;
   }
 
   function mountEntry() {
     var titleBar = document.querySelector('[data-s="title"] .m-actions');
-    if (titleBar && !titleBar.parentNode.querySelector('.ka-arsenal-bar')) {
-      titleBar.insertAdjacentElement('afterend', makeBar());
+    if (titleBar && !titleBar.querySelector('[data-arsenal-entry]')) {
+      titleBar.appendChild(makeEntryBtn('更换兵器'));
     }
     var bars = document.querySelectorAll('[data-s="paused"] .m-actions');
     for (var i = 0; i < bars.length; i++) {
       var bar = bars[i];
       if (bar.querySelector('[data-arsenal-entry]')) continue;
-      var btn = document.createElement('button');
-      btn.className = 'btn';
-      btn.type = 'button';
-      btn.setAttribute('data-arsenal-entry', '1');
-      btn.textContent = '兵器库';
-      btn.addEventListener('click', function (ev) {
-        ev.preventDefault(); ev.stopPropagation(); open();
-      });
-      bar.appendChild(btn);
+      bar.appendChild(makeEntryBtn('兵器库'));
     }
     syncUI();
   }
@@ -7253,14 +7221,7 @@ errors ${window.__errors.length}${window.__errors.length?`
     if (!G) return;
     if (G.THREE && !THREE) THREE = G.THREE;
     reattach();
-    follow();
   }, 500);
-
-  /* 每帧跟随代理组位姿 */
-  (function frame() {
-    follow();
-    requestAnimationFrame(frame);
-  })();
 
   window.__kaArsenal = {
     list: function () { return GUNS.map(function (s) { return s.id + ':' + s.name; }); },
@@ -7269,7 +7230,7 @@ errors ${window.__errors.length}${window.__errors.length?`
     open: open,
     close: close,
     root: function () { return root() || null; },
-    proxy: function () { return proxy; }
+    model: function () { return modelGroup || null; }
   };
 
   if (/[?&]arsenal=1/.test(location.search)) {

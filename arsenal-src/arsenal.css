@@ -83,31 +83,6 @@
   background: linear-gradient(180deg, rgba(255, 255, 255, .22), rgba(255, 255, 255, 0) 55%, rgba(0, 0, 0, .3));
 }
 
-/* 标题页的兵器状态条（与皮肤状态条并列） */
-.ka-arsenal-bar {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 6px 10px;
-  margin-top: 10px;
-}
-.ka-arsenal-k {
-  font: 500 10px/1.4 ui-monospace, "SFMono-Regular", Consolas, monospace;
-  letter-spacing: .16em;
-  text-transform: uppercase;
-  color: rgba(232, 228, 218, .48);
-}
-.ka-arsenal-v {
-  font: 600 12px/1.4 inherit;
-  letter-spacing: .1em;
-  color: #7fb5c9;
-}
-.ka-arsenal-bar .ka-arsenal-open {
-  min-height: 40px;
-  padding: 1px 16px 0;
-  letter-spacing: .16em;
-}
-
 .ka-name {
   display: flex;
   align-items: center;

@@ -37,7 +37,7 @@
 - 玩家：`player.pos/yaw/pitch/health/alive/crouching/sprinting`，**pitch 正值 = 抬头**，眼高 1.68，走速 3.8、冲刺 6.4。
 - 敌人：`enemies.list/spawn/update/raycast`，类型 `gull`（机械飞鸥）与 `hound`（机械猎犬）。
 - 事件：`events.on('weapon:fire' | 'enemy:killed' | …)`。渲染：`render.sun / exposure / sky.material.uniforms / tune / post`。
-- 武器：`G.weapon.root` 是挂在 `camera` 下的 viewmodel 组（组名 `viewmodel-pac9`，枪口朝 -Z，握把局部坐标 `[0,-.1,.073]`）；对外字段 `name/ammo/reserve/magSize/spread/state`，方法 `setVisible/reset/setWetness`。伤害/射速/弹匣/后坐/散布封装在武器模块内部、未导出。兵器库调试句柄 `window.__kaArsenal`：新模型挂到与 root 同级的代理组，每帧复制 root 的 `position/quaternion/scale` 跟随动画位姿，同时隐藏 root；HUD 每帧读 `G.weapon.name` 刷新枪名，切换时直接改 `weapon.name`。
+- 武器：`G.weapon.root` 是挂在 `camera` 下的 viewmodel 组（组名 `viewmodel-pac9`，枪口朝 -Z，握把局部坐标 `[0,-.1,.073]`）；对外字段 `name/ammo/reserve/magSize/spread/state`，方法 `setVisible/reset/setWetness`。伤害/射速/弹匣/后坐/散布封装在武器模块内部、未导出。兵器库调试句柄 `window.__kaArsenal`：新模型作为 root 子级挂入（自动继承 root 位姿与弹簧动画），逐个隐藏 root 内本体自带网格，root 组本身保持可见——本体开火判定 `e.visible` 与手部逻辑都挂在 root 上，整组隐藏会锁死开火；HUD 每帧读 `G.weapon.name` 刷新枪名，切换时直接改 `weapon.name`。
 - 陷阱：`ground.setRain()` 外部调用不生效，要在渲染钩子里覆盖 `uRain`；闪电不要写 `post.flash`，改抬 `sun.intensity`；场景无 `fog`，远景靠 `volFarHaze`。
 
 ## 联机层 `mp-src/net.js`（约 1400 行）
