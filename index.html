@@ -517,7 +517,6 @@ kbd { display: inline-block; font: 500 10px/1 var(--f-mono); color: var(--bone);
 }
 
 </style>
-
 </head>
 <body>
 <div id="app">
@@ -6295,7 +6294,7 @@ vObjP = position; vONrm = normal; vWNrm = normalize(mat3(modelMatrix) * normal);
           <button class="btn" data-act="about">项目介绍</button>
           <button class="btn m-only-narrow" data-act="controls">操作说明</button>
         </div>
-        <p class="m-note">使用 Fable5.2 自主研发 · 国产第一人称射击游戏 · 开发体验版</p>
+        <p class="m-note">单文件 HTML · 全程序化资产 · 浏览器端实时渲染</p>
       </div>
       <aside class="m-legend" aria-label="操作速览">
         <div><span><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> 移动</span><span><kbd>鼠标</kbd> 视角</span><span><kbd>左键</kbd> 开火</span><span><kbd>右键</kbd> 瞄准</span><span><kbd>R</kbd> 换弹</span></div>
@@ -6347,10 +6346,10 @@ vObjP = position; vONrm = normal; vWNrm = normalize(mat3(modelMatrix) * normal);
       </header>
       <div class="panel-b about-copy" data-pane="about" hidden>
         <h3>亚瑟王中王</h3>
-        <p>各位老师、同学好！宣传一下我们最近使用 Fable5.2 自主研发的一款国产 3A FPS 大作——<strong>《亚瑟王中王》</strong>！🎮</p>
-        <p>我们致力于打造具有中国特色的高品质第一人称射击游戏，融合沉浸式战斗体验、创新玩法与次世代视觉表现，探索国产 FPS 游戏的更多可能性。</p>
-        <p>目前项目仍在持续开发与优化中，距离国际顶尖 3A 水准还有一定差距。</p>
-        <p>非常欢迎各位老师、同学关注、体验并提出宝贵建议，期待与游戏开发、图形学及 AI 方向的朋友深入交流！🐱🔥</p>
+        <p>各位老师、同学好。这是我们做的一款浏览器端第一人称射击演示，一个跑在单个 HTML 文件里的「国产 3A」——<strong>《亚瑟王中王》</strong>。</p>
+        <p>整个游戏没有外链，也没有模型与音频素材：港区、集装箱、机械飞鸥与猎犬、枪械、天空和雨，全部由代码在运行时生成。渲染是一条手写的管线——双通道环境光遮蔽、体积光、六级降采样泛光、自适应曝光与 AgX 色调映射；音频同样程序化合成，包含五轨配乐与室内外卷积混响。</p>
+        <p>任务是一条单关流程：切断堆场、仓库、码头三处中继，清掉拦路的机械守卫，再从码头南端撤离。项目仍在打磨，离成熟的商业作品还有距离。</p>
+        <p>欢迎体验，也欢迎游戏开发、图形学与 AI 方向的朋友一起交流。</p>
       </div>
       <div class="panel-b" data-pane="settings">
         <div class="row"><label id="l-q">画面质量</label>
@@ -6686,6 +6685,5 @@ errors ${window.__errors.length}${window.__errors.length?`
 })();
 
 </script>
-
 </body>
 </html>
