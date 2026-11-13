@@ -80,7 +80,18 @@
   content: "";
   position: absolute;
   inset: 0;
+  z-index: 2;
   background: linear-gradient(180deg, rgba(255, 255, 255, .22), rgba(255, 255, 255, 0) 55%, rgba(0, 0, 0, .3));
+}
+.ka-gun-svg {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  padding: 9px 16px;
+  box-sizing: border-box;
+  fill: rgba(232, 228, 218, .82);
 }
 
 .ka-name {

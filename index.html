@@ -601,7 +601,18 @@ kbd { display: inline-block; font: 500 10px/1 var(--f-mono); color: var(--bone);
   content: "";
   position: absolute;
   inset: 0;
+  z-index: 2;
   background: linear-gradient(180deg, rgba(255, 255, 255, .22), rgba(255, 255, 255, 0) 55%, rgba(0, 0, 0, .3));
+}
+.ka-gun-svg {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  padding: 9px 16px;
+  box-sizing: border-box;
+  fill: rgba(232, 228, 218, .82);
 }
 
 .ka-name {
@@ -7103,12 +7114,32 @@ errors ${window.__errors.length}${window.__errors.length?`
     return map[gun.id] || map.pac9;
   }
 
+  /* 卡片侧面剪影（示意外形，枪口朝右）；纯 SVG，不依赖 WebGL */
+  function R(x, y, w, h) { return '<rect x="' + x + '" y="' + y + '" width="' + w + '" height="' + h + '"/>'; }
+  function P(p) { return '<polygon points="' + p + '"/>'; }
+  var GUN_SILHOUETTE = {
+    pac9: R(6,20,22,14) + R(28,18,44,14) + R(72,20,48,10) + R(120,23,48,4) +
+      P('44,32 56,32 54,46 46,46') + P('30,32 38,32 36,44 29,44') + R(50,12,16,6) + R(164,16,3,7),
+    smg: R(18,22,12,8) + R(30,18,58,14) + R(88,21,32,8) +
+      P('50,32 60,32 59,44 51,44') + P('36,32 44,32 42,42 35,42') + R(55,13,14,5),
+    sniper: R(6,20,24,14) + R(30,19,48,12) + R(78,21,42,8) + R(120,23,58,3) +
+      R(48,10,44,8) + R(62,18,6,3) + P('52,31 62,31 61,40 53,40') + P('34,31 42,31 40,43 33,43') + R(178,21,8,7),
+    pistol: R(40,18,60,10) + R(42,28,50,4) + P('46,32 60,32 57,48 44,48') +
+      P('62,32 76,32 74,38 63,38') + R(92,13,6,5),
+    shotgun: R(8,20,24,14) + R(32,18,38,14) + R(70,22,38,10) + R(108,21,52,6) +
+      R(70,30,78,4) + P('38,32 46,32 44,43 37,43') + R(156,15,3,6)
+  };
+  function gunSvg(id) {
+    var body = GUN_SILHOUETTE[id] || GUN_SILHOUETTE.pac9;
+    return '<svg class="ka-gun-svg" viewBox="0 0 200 60" preserveAspectRatio="xMidYMid meet" aria-hidden="true">' + body + '</svg>';
+  }
+
   function buildPanel() {
     panel = document.createElement('div');
     panel.id = 'ka-arsenal-panel';
     var cards = GUNS.map(function (s) {
       return '<button class="ka-card" type="button" data-gun="' + s.id + '">' +
-        '<span class="ka-swatch" style="background:' + swatch(s) + '"></span>' +
+        '<span class="ka-swatch" style="background:' + swatch(s) + '">' + gunSvg(s.id) + '</span>' +
         '<span class="ka-name">' + s.name + '<span class="ka-tag" hidden>已装备</span></span>' +
         '<span class="ka-desc">' + s.desc + '</span>' +
         '</button>';
