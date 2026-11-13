@@ -29,7 +29,8 @@
     internalSpawn: false,
     guestHooked: false,
     sending: false,
-    lastShot: 0
+    lastShot: 0,
+    fireAt: 0
   };
 
   var avatars = { remote: null };
@@ -58,68 +59,207 @@
     n.querySelector('.label').textContent = label || '双人联机';
   }
 
-  // ---------------- 替身 -------------------
-  function makeAvatar() {
+  // ---------------- 替身：程序化特种兵（关节层级 + 姿态）----------------
+  var AV_MAT = null;
+  function avMat() {
+    if (AV_MAT) return AV_MAT;
+    AV_MAT = {
+      pants: new THREE.MeshStandardMaterial({ color: 0x4b5346, roughness: 0.92, metalness: 0.05, emissive: 0x232a20, emissiveIntensity: 0.2 }),
+      shirt: new THREE.MeshStandardMaterial({ color: 0x3c443c, roughness: 0.9, metalness: 0.06, emissive: 0x1b211b, emissiveIntensity: 0.18 }),
+      vest: new THREE.MeshStandardMaterial({ color: 0x1e241f, roughness: 0.66, metalness: 0.32, emissive: 0x13170f, emissiveIntensity: 0.15 }),
+      gear: new THREE.MeshStandardMaterial({ color: 0x2a302d, roughness: 0.6, metalness: 0.34, emissive: 0x161a17, emissiveIntensity: 0.14 }),
+      helmet: new THREE.MeshStandardMaterial({ color: 0x3a4145, roughness: 0.5, metalness: 0.42, emissive: 0x1b2226, emissiveIntensity: 0.16 }),
+      visor: new THREE.MeshStandardMaterial({ color: 0x161d20, roughness: 0.16, metalness: 0.9, emissive: 0x2f4046, emissiveIntensity: 0.12 }),
+      skin: new THREE.MeshStandardMaterial({ color: 0xa1876f, roughness: 0.82, metalness: 0.02, emissive: 0x4a3b2c, emissiveIntensity: 0.2 }),
+      metal: new THREE.MeshStandardMaterial({ color: 0x3d4346, roughness: 0.42, metalness: 0.75, emissive: 0x1a1f21, emissiveIntensity: 0.14 }),
+      metal: new THREE.MeshStandardMaterial({ color: 0x2b2f31, roughness: 0.42, metalness: 0.75 }),
+      lamp: new THREE.MeshStandardMaterial({ color: 0x79cf80, emissive: 0x79cf80, emissiveIntensity: 3.4, roughness: 1 })
+    };
+    return AV_MAT;
+  }
+
+  // 肢体：关节在原点、整体沿 -Y 延伸 len
+  function avLimb(len, r, mat) {
     var g = new THREE.Group();
-    g.name = 'mp-avatar';
-    var skin = new THREE.MeshStandardMaterial({ color: 0x2f3740, roughness: 0.78, metalness: 0.18, emissive: 0x141b21, emissiveIntensity: 0.55 });
-    var cloth = new THREE.MeshStandardMaterial({ color: 0x1d2329, roughness: 0.92, metalness: 0.05, emissive: 0x0e1419, emissiveIntensity: 0.45 });
-    var visor = new THREE.MeshStandardMaterial({ color: 0x0d1418, roughness: 0.3, metalness: 0.6 });
-    var lamp = new THREE.MeshStandardMaterial({ color: 0x6fbf73, emissive: 0x6fbf73, emissiveIntensity: 3.4, roughness: 1 });
-
-    var torso = new THREE.Mesh(new THREE.CapsuleGeometry(0.23, 0.62, 4, 10), cloth);
-    torso.position.y = 1.02;
-    torso.castShadow = true;
-    g.add(torso);
-
-    var head = new THREE.Mesh(new THREE.SphereGeometry(0.155, 14, 12), skin);
-    head.position.y = 1.55;
-    head.castShadow = true;
-    g.add(head);
-
-    var vis = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.075, 0.1), visor);
-    vis.position.set(0, 1.57, -0.12);
-    g.add(vis);
-
-    var tip = new THREE.Mesh(new THREE.SphereGeometry(0.055, 10, 8), lamp);
-    tip.position.set(0, 1.74, 0);
-    g.add(tip);
-
-    // 头顶识别点：MeshBasicMaterial 不受光照影响，暗处与远处也能一眼找到队友
-    var marker = new THREE.Mesh(new THREE.SphereGeometry(0.065, 10, 8), new THREE.MeshBasicMaterial({ color: 0x9bf0a6 }));
-    marker.position.set(0, 2.02, 0);
-    g.add(marker);
-
-    [-1, 1].forEach(function (sx) {
-      var leg = new THREE.Mesh(new THREE.CapsuleGeometry(0.105, 0.55, 4, 8), cloth);
-      leg.position.set(sx * 0.125, 0.36, 0);
-      leg.castShadow = true;
-      g.add(leg);
-
-      var arm = new THREE.Mesh(new THREE.CapsuleGeometry(0.075, 0.36, 4, 8), skin);
-      arm.position.set(sx * 0.27, 1.2, sx * 0.03);
-      arm.rotation.z = sx * 0.16;
-      g.add(arm);
-    });
-
-    // 简化武器：右手前方一段枪身
-    var gun = new THREE.Mesh(new THREE.BoxGeometry(0.055, 0.085, 0.52), visor);
-    gun.position.set(0.2, 1.16, -0.26);
-    gun.rotation.x = 0.06;
-    g.add(gun);
-
-    g.visible = false;
-    g.rotation.order = 'YXZ';
-    G.scene.add(g);
+    var m = new THREE.Mesh(new THREE.CapsuleGeometry(r, Math.max(0.02, len - 2 * r), 3, 8), mat);
+    m.position.y = -len * 0.5;
+    m.castShadow = true;
+    g.add(m);
     return g;
   }
 
-  function placeAvatar(g, x, y, z, yaw, pitch) {
+  function avBox(w, h, d, mat, x, y, z) {
+    var m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
+    m.position.set(x || 0, y || 0, z || 0);
+    m.castShadow = true;
+    return m;
+  }
+
+  // 步枪：机匣 / 护木 / 枪管 / 弹匣 / 握把 / 枪托 / 瞄具，朝 -Z
+  function avRifle(M) {
+    var g = new THREE.Group();
+    g.add(avBox(0.055, 0.082, 0.30, M.metal, 0, 0, 0));
+    g.add(avBox(0.05, 0.066, 0.26, M.gear, 0, -0.004, -0.25));
+    var barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, 0.28, 8), M.metal);
+    barrel.rotation.x = Math.PI / 2;
+    barrel.position.set(0, 0.006, -0.46);
+    g.add(barrel);
+    g.add(avBox(0.052, 0.048, 0.07, M.metal, 0, 0.006, -0.55));
+    var mag = avBox(0.036, 0.16, 0.072, M.gear, 0, -0.105, -0.09);
+    mag.rotation.x = 0.14;
+    g.add(mag);
+    g.add(avBox(0.038, 0.095, 0.052, M.gear, 0, -0.085, 0.085));
+    g.add(avBox(0.046, 0.07, 0.19, M.gear, 0, 0.002, 0.22));
+    g.add(avBox(0.026, 0.03, 0.10, M.metal, 0, 0.058, -0.13));
+    return g;
+  }
+
+  function makeAvatar() {
+    var M = avMat();
+    var root = new THREE.Group();
+    root.name = 'mp-soldier';
+    var rig = { phase: 0 };
+
+    // 髋：全身重心（以脚底贴地为基准）
+    var hips = new THREE.Group();
+    hips.position.y = 0.86;
+    root.add(hips);
+    rig.hips = hips;
+    hips.add(avBox(0.355, 0.205, 0.24, M.pants, 0, -0.03, 0));
+    hips.add(avBox(0.385, 0.08, 0.27, M.vest, 0, 0.075, 0));           // 战术腰带
+    hips.add(avBox(0.118, 0.12, 0.08, M.vest, 0.157, 0.0, -0.10));     // 腰包
+    hips.add(avBox(0.108, 0.105, 0.075, M.vest, -0.163, 0.01, -0.09));
+
+    // 腿
+    function buildLeg(sx) {
+      var thigh = avLimb(0.38, 0.107, M.pants);
+      thigh.position.set(sx * 0.108, -0.075, 0);
+      var shin = avLimb(0.36, 0.089, M.pants);
+      shin.position.y = -0.38;
+      shin.add(avBox(0.168, 0.138, 0.178, M.gear, 0, 0.01, -0.016));    // 护膝
+      var foot = avBox(0.138, 0.09, 0.30, M.gear, 0, -0.36, -0.06);     // 战靴
+      shin.add(foot);
+      thigh.add(shin);
+      hips.add(thigh);
+      return { thigh: thigh, shin: shin, foot: foot };
+    }
+    rig.legL = buildLeg(-1);
+    rig.legR = buildLeg(1);
+
+    // 躯干
+    var chest = new THREE.Group();
+    chest.position.y = 0.09;
+    hips.add(chest);
+    rig.chest = chest;
+    chest.add(avBox(0.382, 0.42, 0.228, M.shirt, 0, 0.20, 0));         // 胸廓
+    chest.add(avBox(0.412, 0.375, 0.268, M.vest, 0, 0.16, 0));         // 战术背心
+    chest.add(avBox(0.09, 0.105, 0.055, M.vest, -0.096, 0.17, -0.145));// 弹匣袋
+    chest.add(avBox(0.09, 0.105, 0.055, M.vest, 0, 0.17, -0.145));
+    chest.add(avBox(0.09, 0.105, 0.055, M.vest, 0.096, 0.17, -0.145));
+    chest.add(avBox(0.078, 0.054, 0.04, M.lamp, -0.145, 0.355, -0.125));// 肩章灯
+    chest.add(avBox(0.225, 0.275, 0.125, M.vest, 0, 0.20, 0.168));     // 背包
+
+    // 头
+    var head = new THREE.Group();
+    head.position.y = 0.445;
+    chest.add(head);
+    rig.head = head;
+    head.add(avBox(0.11, 0.085, 0.11, M.skin, 0, -0.025, 0));           // 颈
+    var skull = new THREE.Mesh(new THREE.SphereGeometry(0.118, 12, 10), M.skin);
+    skull.position.set(0, 0.058, 0.005);
+    skull.castShadow = true;
+    head.add(skull);
+    var helm = new THREE.Mesh(new THREE.SphereGeometry(0.142, 12, 9, 0, Math.PI * 2, 0, Math.PI * 0.62), M.helmet);
+    helm.position.set(0, 0.080, 0.004);
+    helm.castShadow = true;
+    head.add(helm);
+    head.add(avBox(0.225, 0.052, 0.082, M.visor, 0, 0.065, -0.10));     // 护目镜
+    head.add(avBox(0.15, 0.085, 0.05, M.vest, 0, -0.02, -0.082));       // 面罩
+    head.add(avBox(0.036, 0.032, 0.032, M.lamp, 0.118, 0.05, -0.014));  // 耳麦灯
+
+    // 臂
+    function buildArm(sx) {
+      var sh = new THREE.Group();
+      sh.position.set(sx * 0.215, 0.35, 0);
+      chest.add(sh);
+      var upper = avLimb(0.30, 0.088, M.shirt);
+      upper.position.y = -0.015;
+      sh.add(upper);
+      sh.add(avBox(0.118, 0.098, 0.125, M.vest, 0, -0.075, 0));          // 护肩
+      var fore = avLimb(0.31, 0.075, M.shirt);
+      fore.position.y = -0.295;
+      fore.add(avBox(0.112, 0.08, 0.11, M.gear, 0, -0.015, 0));          // 护肘
+      fore.add(avBox(0.095, 0.105, 0.11, M.gear, 0, -0.30, -0.012));     // 手套
+      upper.add(fore);
+      return { shoulder: sh, upper: upper, fore: fore };
+    }
+    rig.armL = buildArm(-1);
+    rig.armR = buildArm(1);
+
+    // 枪：挂在右前臂，随肘部角度走
+    var rifle = avRifle(M);
+    rifle.position.set(0.012, -0.30, -0.085);
+    rig.armR.fore.add(rifle);
+    rig.rifle = rifle;
+
+    // 自补光：逆光下也能看清装备层次与轮廓
+    var fill = new THREE.PointLight(0xd2e2ff, 0.85, 3.6, 2);
+    fill.position.set(0, 1.28, -0.55);
+    root.add(fill);
+
+    root.userData.rig = rig;
+    root.visible = false;
+    root.rotation.order = 'YXZ';
+    G.scene.add(root);
+    return root;
+  }
+
+  function damp(a, b, k, dt) { return a + (b - a) * (1 - Math.exp(-k * dt)); }
+
+  function poseAvatar(rig, st, dt) {
+    if (!rig || !dt || dt <= 0) return;
+    var moving = st.speed > 0.45;
+    rig.phase += st.speed * dt * (st.sprint ? 2.1 : 1.7);
+    var s = Math.sin(rig.phase);
+    var amp = moving ? (0.40 + (st.sprint ? 0.36 : 0)) : 0.045;
+
+    // 重心与前倾
+    var hipY = st.crouch ? 0.44 : 0.86;
+    var bob = moving ? Math.sin(rig.phase * 2) * 0.014 : Math.sin(performance.now() * 0.0012) * 0.006;
+    rig.hips.position.y = damp(rig.hips.position.y, hipY + bob, 9, dt);
+    var lean = (st.sprint ? 0.30 : 0) + (st.crouch ? 0.28 : 0) + (moving ? 0.04 : 0);
+    rig.chest.rotation.x = damp(rig.chest.rotation.x, lean, 7, dt);
+
+    // 腿
+    var cT = st.crouch ? 1.50 : 0;
+    rig.legL.thigh.rotation.x = damp(rig.legL.thigh.rotation.x, s * amp + cT, 11, dt);
+    rig.legR.thigh.rotation.x = damp(rig.legR.thigh.rotation.x, -s * amp + cT, 11, dt);
+    var cK = st.crouch ? 1.52 : 0;
+    rig.legL.shin.rotation.x = damp(rig.legL.shin.rotation.x, -Math.max(0, s) * amp * 1.15 - cK, 11, dt);
+    rig.legR.shin.rotation.x = damp(rig.legR.shin.rotation.x, -Math.max(0, -s) * amp * 1.15 - cK, 11, dt);
+
+    // 手臂：持枪。冲刺时枪口下压抱于胸前，开火时抬平
+    var aimBias = st.fire ? 0.14 : (st.sprint ? -0.20 : 0);
+    var rSh = 0.88 + aimBias - (st.crouch ? 0.10 : 0);
+    rig.armR.shoulder.rotation.x = damp(rig.armR.shoulder.rotation.x, rSh, 9, dt);
+    rig.armR.shoulder.rotation.z = damp(rig.armR.shoulder.rotation.z, -0.12, 9, dt);
+    rig.armR.fore.rotation.x = damp(rig.armR.fore.rotation.x, -0.92 + (st.sprint ? 0.46 : 0), 9, dt);
+
+    rig.armL.shoulder.rotation.x = damp(rig.armL.shoulder.rotation.x, 0.80 - (st.sprint ? 0.18 : 0), 9, dt);
+    rig.armL.shoulder.rotation.z = damp(rig.armL.shoulder.rotation.z, 0.34, 9, dt);
+    rig.armL.fore.rotation.x = damp(rig.armL.fore.rotation.x, -1.05, 9, dt);
+
+    // 开火后坐
+    if (rig.rifle) rig.rifle.position.z = damp(rig.rifle.position.z, st.fire ? -0.045 : -0.075, 14, dt);
+  }
+
+  function placeAvatar(g, x, y, z, yaw, pitch, st, dt) {
     if (!g) return;
     g.visible = true;
     g.position.set(x, y, z);
     g.rotation.y = yaw || 0;
     g.rotation.x = 0;
+    if (g.userData.rig) poseAvatar(g.userData.rig, st, dt);
   }
 
   // ---------------- 网络 -------------------
@@ -224,7 +364,8 @@
         x: +p.pos.x.toFixed(2), y: +p.pos.y.toFixed(2), z: +p.pos.z.toFixed(2),
         w: +p.yaw.toFixed(3), q: +p.pitch.toFixed(3),
         h: Math.round(p.health), a: p.alive ? 1 : 0,
-        c: p.crouching ? 1 : 0, s: p.sprinting ? 1 : 0
+        c: p.crouching ? 1 : 0, s: p.sprinting ? 1 : 0,
+        f: (performance.now() - (S.fireAt || 0)) < 320 ? 1 : 0
       },
       e: arr
     });
@@ -237,6 +378,7 @@
     r.x = m.p.x; r.y = m.p.y; r.z = m.p.z;
     r.yaw = m.p.w; r.pitch = m.p.q;
     r.hp = m.p.h; r.alive = !!m.p.a;
+    r.c = !!m.p.c; r.s = !!m.p.s; r.f = !!m.p.f;
   }
 
   function onRemoteShot(m) {
@@ -294,6 +436,7 @@
       r.x = m.p.x; r.y = m.p.y; r.z = m.p.z;
       r.yaw = m.p.w; r.pitch = m.p.q;
       r.hp = m.p.h; r.alive = !!m.p.a;
+      r.c = !!m.p.c; r.s = !!m.p.s; r.f = !!m.p.f;
     }
     if (m.e) {
       var seen = {};
@@ -578,7 +721,12 @@
     buildUI();
 
     if (G.events && G.events.on) {
-      try { G.events.on('weapon:fire', onLocalFire); } catch (e) { /* 事件名不存在则跳过 */ }
+      try {
+        G.events.on('weapon:fire', function () {
+          S.fireAt = performance.now();
+          try { onLocalFire.apply(null, arguments); } catch (e) { }
+        });
+      } catch (e) { /* 事件名不存在则跳过 */ }
       // 敌人死亡立刻广播，让队友侧同步消失（不必等下一个状态包）
       try {
         G.events.on('enemy:killed', function (payload) {
@@ -596,17 +744,29 @@
       else if (S.role === 'guest') guestSendSelf();
     }, 1000 / CFG.hz);
 
-    // 渲染帧：替身跟随
+    // 渲染帧：替身跟随 + 姿态驱动
+    var lastP = null, lastT = 0;
     (function frame() {
       try {
-        if (S.connected) {
-          if (S.role === 'host' && S.remote) {
-            placeAvatar(avatars.remote, S.remote.x, S.remote.y, S.remote.z, S.remote.yaw, S.remote.pitch);
-          } else if (S.role === 'guest' && S.remote) {
-            placeAvatar(avatars.remote, S.remote.x, S.remote.y, S.remote.z, S.remote.yaw, S.remote.pitch);
+        var now = performance.now();
+        if (S.connected && S.remote && avatars.remote) {
+          var dt = lastT ? Math.min(0.06, (now - lastT) / 1000) : 0.016;
+          lastT = now;
+          if (!(dt > 0)) dt = 0.016;
+          var r = S.remote;
+          var spd = 0;
+          if (lastP) {
+            var dx = r.x - lastP.x, dy = r.y - lastP.y, dz = r.z - lastP.z;
+            spd = Math.sqrt(dx * dx + dy * dy + dz * dz) / dt;
+            if (spd > 25) spd = 0;   // 传送/抖动保护
           }
-        } else if (avatars.remote) {
-          avatars.remote.visible = false;
+          lastP = { x: r.x, y: r.y, z: r.z };
+          placeAvatar(avatars.remote, r.x, r.y, r.z, r.yaw, r.pitch,
+            { speed: spd, crouch: !!r.c, sprint: !!r.s, fire: !!r.f }, dt);
+        } else {
+          lastP = null;
+          lastT = 0;
+          if (avatars.remote) avatars.remote.visible = false;
         }
       } catch (e) { /* 渲染异常不阻塞主循环 */ }
       requestAnimationFrame(frame);
@@ -649,7 +809,8 @@
         x: +p.pos.x.toFixed(2), y: +p.pos.y.toFixed(2), z: +p.pos.z.toFixed(2),
         w: +p.yaw.toFixed(3), q: +p.pitch.toFixed(3),
         h: Math.round(p.health), a: p.alive ? 1 : 0,
-        c: p.crouching ? 1 : 0, s: p.sprinting ? 1 : 0
+        c: p.crouching ? 1 : 0, s: p.sprinting ? 1 : 0,
+        f: (performance.now() - (S.fireAt || 0)) < 320 ? 1 : 0
       }
     });
   }
