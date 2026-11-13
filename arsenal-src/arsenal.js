@@ -216,14 +216,15 @@
     if (!stockName) stockName = w.name || '亚瑟九式突击步枪';
     if (r !== lastRoot) { lastRoot = r; collectBodyMeshes(r); }
 
+    /* 注意：不主动改 r.visible。root 的可见性由本体状态机控制
+       （进任务 setVisible(true)，回标题/启动 setVisible(false)）；
+       若在这里强制 true，标题视角会把武器模型露出来形成遮挡黑块。 */
     if (gun.builtin) {
       /* 原配：恢复本体网格，摘除新模型 */
-      r.visible = true;
       restoreBody();
       detachModel();
       w.name = stockName;
     } else {
-      r.visible = true;
       hideBody();
       detachModel();
       modelGroup = getModel(gun);
@@ -240,12 +241,10 @@
     if (r !== lastRoot) { lastRoot = r; collectBodyMeshes(r); }
     var gun = byId(cur);
     if (gun.builtin) {
-      r.visible = true;
       restoreBody();
       detachModel();
       if (w.name !== stockName && stockName) w.name = stockName;
     } else {
-      r.visible = true;
       hideBody();
       detachModel();
       modelGroup = getModel(gun);
