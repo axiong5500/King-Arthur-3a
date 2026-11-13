@@ -26,6 +26,7 @@
 | --- | --- | --- |
 | `index.html` | 单机成品（原版 + 皮肤层） | 线上主版本 |
 | `skin-src/` | 枪械涂装：运行时替换 PAC-9 的 5 个材质配色，localStorage 记选择 | 注入 index.html |
+| `arsenal-src/` | 单机兵器库：程序化建模四把新枪（冲锋枪/狙击/手枪/霰弹），运行时替换手持外形与 HUD 枪名，localStorage 记选择；**纯外观**，不改弹道/伤害/射速/弹匣 | 注入 index.html |
 | `weather-src/` | 六种天候（光照/天空/雨/湿度/雾渐变），**当前未启用** | 仅总构建注入 |
 | `mp-src/` | 双人联机层：`net.js` + `net.css` + 内联 `peerjs.min.js` | 生成 `mp/index.html` |
 注入方式：构建脚本把 css 塞进 `</head>` 前、js 塞进最后的 `</body>` 前；基底已含标记（`ka-mp-js` 等）就报错拒绝，所以永远从干净基底重新注入，不叠加。没有 pwsh 时，用 python 做等价替换（正则匹配 `<script id="ka-mp-js">…</script>` 换成新 net.js），再校验内联内容与 `mp-src/net.js` 逐字一致。
@@ -36,6 +37,7 @@
 - 玩家：`player.pos/yaw/pitch/health/alive/crouching/sprinting`，**pitch 正值 = 抬头**，眼高 1.68，走速 3.8、冲刺 6.4。
 - 敌人：`enemies.list/spawn/update/raycast`，类型 `gull`（机械飞鸥）与 `hound`（机械猎犬）。
 - 事件：`events.on('weapon:fire' | 'enemy:killed' | …)`。渲染：`render.sun / exposure / sky.material.uniforms / tune / post`。
+- 武器：`G.weapon.root` 是挂在 `camera` 下的 viewmodel 组（组名 `viewmodel-pac9`，枪口朝 -Z，握把局部坐标 `[0,-.1,.073]`）；对外字段 `name/ammo/reserve/magSize/spread/state`，方法 `setVisible/reset/setWetness`。伤害/射速/弹匣/后坐/散布封装在武器模块内部、未导出。兵器库调试句柄 `window.__kaArsenal`：新模型挂到与 root 同级的代理组，每帧复制 root 的 `position/quaternion/scale` 跟随动画位姿，同时隐藏 root；HUD 每帧读 `G.weapon.name` 刷新枪名，切换时直接改 `weapon.name`。
 - 陷阱：`ground.setRain()` 外部调用不生效，要在渲染钩子里覆盖 `uRain`；闪电不要写 `post.flash`，改抬 `sun.intensity`；场景无 `fog`，远景靠 `volFarHaze`。
 
 ## 联机层 `mp-src/net.js`（约 1400 行）
@@ -75,6 +77,7 @@
 3. 天气层源码完整但未启用：暴雨/雷暴低画质糊屏（雨量 >0.6），缺真机长时间验证。
 4. 补丁层依赖 `__G` 内部字段名，原版改名会连锁失效。
 5. 联机依赖 PeerJS 公共信令 `0.peerjs.com`，不可达时需自建信令。
+6. 兵器库四把新枪是简化程序化外形，手部为简化手套块（非本体骨骼手）；模型只跟随 root 整体位姿，没有独立换弹/拉栓动画；手枪尺寸偏小、握姿贴合度一般。
 
 ## 工作环境注意
 - 克隆是浅克隆：推送新分支后若钩子误报“无远程分支”，先 `git fetch --depth=1 origin +refs/heads/X:refs/remotes/origin/X` 补跟踪引用；合并前遇 “unrelated histories” 用 `--depth=2` 补深度。

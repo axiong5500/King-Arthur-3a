@@ -1,0 +1,167 @@
+/* 兵器库：外观换模面板（独立层，不接管游戏原有菜单；与皮肤层并列共存） */
+#ka-arsenal-panel {
+  position: fixed;
+  inset: 0;
+  z-index: 9000;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 18px;
+  font-family: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", system-ui, sans-serif;
+  -webkit-tap-highlight-color: transparent;
+}
+#ka-arsenal-panel.on { display: flex; }
+
+.ka-veil {
+  position: absolute;
+  inset: 0;
+  background: rgba(4, 6, 8, .82);
+  -webkit-backdrop-filter: blur(7px);
+  backdrop-filter: blur(7px);
+}
+
+.ka-box {
+  position: relative;
+  width: 100%;
+  max-width: 880px;
+  max-height: calc(100% - 8px);
+  overflow: auto;
+  -webkit-overflow-scrolling: touch;
+  background: #0f1215;
+  border: 1px solid rgba(232, 228, 218, .16);
+  box-shadow: 0 30px 90px rgba(0, 0, 0, .65);
+  padding: clamp(16px, 3vh, 28px) clamp(14px, 3vw, 30px) clamp(14px, 2.4vh, 22px);
+}
+
+.ka-head { display: flex; flex-direction: column; gap: 6px; border-left: 3px solid #7fb5c9; padding-left: 12px; }
+.ka-k {
+  font: 500 10px/1 ui-monospace, "SFMono-Regular", Consolas, monospace;
+  letter-spacing: .24em;
+  text-transform: uppercase;
+  color: #7fb5c9;
+}
+.ka-title { margin: 0; font: 600 clamp(19px, 2.4vw, 25px)/1.15 inherit; letter-spacing: .06em; color: #e8e4da; }
+.ka-sub { margin: 2px 0 0; font-size: 12px; line-height: 1.5; color: rgba(232, 228, 218, .55); }
+
+.ka-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: clamp(12px, 2.4vh, 20px);
+}
+@media (max-width: 660px) { .ka-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; } }
+
+.ka-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding: 10px;
+  min-height: 108px;
+  background: #14171a;
+  border: 1px solid rgba(232, 228, 218, .14);
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+  transition: border-color .14s, background .14s;
+}
+.ka-card:hover { border-color: rgba(232, 228, 218, .42); background: #181c20; }
+.ka-card.is-on { border-color: #7fb5c9; background: #161a1c; box-shadow: inset 0 0 0 1px #7fb5c9; }
+
+.ka-swatch {
+  position: relative;
+  height: 54px;
+  border: 1px solid rgba(0, 0, 0, .55);
+  overflow: hidden;
+}
+.ka-swatch::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(255, 255, 255, .22), rgba(255, 255, 255, 0) 55%, rgba(0, 0, 0, .3));
+}
+
+/* 标题页的兵器状态条（与皮肤状态条并列） */
+.ka-arsenal-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  margin-top: 10px;
+}
+.ka-arsenal-k {
+  font: 500 10px/1.4 ui-monospace, "SFMono-Regular", Consolas, monospace;
+  letter-spacing: .16em;
+  text-transform: uppercase;
+  color: rgba(232, 228, 218, .48);
+}
+.ka-arsenal-v {
+  font: 600 12px/1.4 inherit;
+  letter-spacing: .1em;
+  color: #7fb5c9;
+}
+.ka-arsenal-bar .ka-arsenal-open {
+  min-height: 40px;
+  padding: 1px 16px 0;
+  letter-spacing: .16em;
+}
+
+.ka-name {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  font-size: clamp(13px, 1.4vw, 15px);
+  font-weight: 600;
+  letter-spacing: .08em;
+  color: #e8e4da;
+}
+.ka-tag {
+  flex: none;
+  font: 500 9px/1 ui-monospace, Consolas, monospace;
+  letter-spacing: .12em;
+  color: #7fb5c9;
+  border: 1px solid rgba(127, 181, 201, .6);
+  padding: 3px 4px 2px;
+}
+.ka-desc { font-size: 11px; line-height: 1.45; color: rgba(232, 228, 218, .5); }
+
+.ka-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: clamp(14px, 2.6vh, 22px);
+  padding-top: 12px;
+  border-top: 1px solid rgba(232, 228, 218, .12);
+}
+.ka-cur { font: 400 11px/1.4 ui-monospace, Consolas, monospace; letter-spacing: .06em; color: rgba(232, 228, 218, .6); }
+.ka-cur b { color: #7fb5c9; font-weight: 500; }
+
+.ka-close {
+  flex: none;
+  min-height: 44px;
+  padding: 2px 26px 0;
+  font: 600 14px/1 inherit;
+  letter-spacing: .2em;
+  color: #0b0d0f;
+  background: #7fb5c9;
+  border: 1px solid #7fb5c9;
+  cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+}
+.ka-close:hover { background: #93c5d7; }
+.ka-close:focus-visible { outline: 2px solid #e8e4da; outline-offset: 3px; }
+.ka-card:focus-visible { outline: 2px solid #7fb5c9; outline-offset: 2px; }
+
+@media (orientation: landscape) and (max-height: 460px) {
+  .ka-box { padding: 12px 16px; }
+  .ka-swatch { height: 38px; }
+  .ka-card { min-height: 88px; padding: 8px; }
+  .ka-title { font-size: 17px; }
+  .ka-sub { display: none; }
+  .ka-foot { margin-top: 10px; padding-top: 8px; }
+}
