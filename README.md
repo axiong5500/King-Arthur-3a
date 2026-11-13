@@ -57,6 +57,14 @@ python -m http.server 8080
 
 依赖 PeerJS 公共信令（`0.peerjs.com`）。如果哪天这个域名不可达，需要换成自建信令服务器，只改 `mp-src/net.js` 里 `peerOpts()` 的 `host/port/path` 即可，其余逻辑不动。
 
+## 更新记录
+
+每次提交都直接进 `main`，并在这里记录新增了什么游戏功能；任何一条都可以用 `git revert <提交号>` 单独回退。
+
+| 日期 | 提交 | 新增 / 变化的游戏功能 | 涉及文件 | 回退 |
+| --- | --- | --- | --- | --- |
+| 2026-11-13 | `6ea7904` | **双人联机：队友人物重做。** 真实人体比例（约 1.79m）的特种兵：迷彩作战服、战术背心、背包、头盔护目镜、手套、步枪。动作：按速度落地不滑步的走跑步态、持枪双手贴枪、瞄准时上身与头跟随俯仰、蹲伏与蹲行、冲刺、跳跃落地缓冲、开火后坐与枪口焰、受击抽动、倒地。联机协议不变。 | `mp-src/net.js`、`mp/index.html`、`README.md` | `git revert 6ea7904` |
+
 ## 目录结构
 
 - `index.html` —— 成品（单文件，已注入枪械皮肤；未注入天气）
@@ -65,6 +73,7 @@ python -m http.server 8080
 - `skin-src/` —— 枪械皮肤源码（`skin.css` / `skin.js` / `build.ps1`）
 - `weather-src/` —— 天气系统源码（`weather.css` / `weather.js` / `build.ps1`）
 - `mp-src/` —— 双人联机源码（`net.css` / `net.js` / `peerjs.min.js` / `build.ps1`）
+- `CLAUDE.md` —— 协作约定（直接提交 main、每次提交同步更新记录）
 - `源码结构说明.md` —— 原版源码的技术档案（渲染管线、参数表、子系统、运行时抓手）
 
 ## 构建
